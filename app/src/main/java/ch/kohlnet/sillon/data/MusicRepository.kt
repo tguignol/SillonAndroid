@@ -1,6 +1,7 @@
 package ch.kohlnet.sillon.data
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -75,27 +76,34 @@ object MusicRepository {
         }
     }
 
-    /** Authentifie, persiste la connexion, puis charge les albums. */
-    suspend fun connect(url: String, username: String, password: String) {
-        _status.value = ConnectionStatus.Connecting
-        try {
-            client?.close()
-            val c = JellyfinClient(url)
-            val auth = c.authenticate(username, password)
-            client = c
-            token = auth.accessToken
-            userId = auth.user.id
-            _status.value = ConnectionStatus.Connected(auth.user.name)
-            appContext?.let {
-                ServerStore.save(it, SavedServer(c.base, auth.user.id, auth.accessToken, auth.user.name))
+    /**
+     * Authentifie, persiste la connexion, puis charge les albums. Lancé sur le scope DURABLE du dépôt
+     * (et non celui de l'écran) : la connexion survit à un changement d'écran / une recomposition.
+     */
+    fun connect(url: String, username: String, password: String) {
+        scope.launch {
+            _status.value = ConnectionStatus.Connecting
+            try {
+                client?.close()
+                val c = JellyfinClient(url)
+                val auth = c.authenticate(username, password)
+                client = c
+                token = auth.accessToken
+                userId = auth.user.id
+                _status.value = ConnectionStatus.Connected(auth.user.name)
+                appContext?.let {
+                    ServerStore.save(it, SavedServer(c.base, auth.user.id, auth.accessToken, auth.user.name))
+                }
+                loadAlbums()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                client = null
+                token = null
+                userId = null
+                _albums.value = emptyList()
+                _status.value = ConnectionStatus.Error(e.message ?: "Échec de la connexion")
             }
-            loadAlbums()
-        } catch (e: Exception) {
-            client = null
-            token = null
-            userId = null
-            _albums.value = emptyList()
-            _status.value = ConnectionStatus.Error(e.message ?: "Échec de la connexion")
         }
     }
 

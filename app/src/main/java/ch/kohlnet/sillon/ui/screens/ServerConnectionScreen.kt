@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import ch.kohlnet.sillon.data.ConnectionStatus
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.ui.theme.Sillon
-import kotlinx.coroutines.launch
 
 /**
  * Réglages → Connexion au serveur. L'utilisateur saisit l'adresse + ses identifiants au runtime
@@ -42,7 +40,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun ServerConnectionScreen() {
     val status by MusicRepository.status.collectAsState()
-    val scope = rememberCoroutineScope()
 
     var url by rememberSaveable { mutableStateOf("") }
     var user by rememberSaveable { mutableStateOf("") }
@@ -93,7 +90,7 @@ fun ServerConnectionScreen() {
         )
 
         Button(
-            onClick = { scope.launch { MusicRepository.connect(url, user, password) } },
+            onClick = { MusicRepository.connect(url, user, password) },
             enabled = !connecting && url.isNotBlank() && user.isNotBlank(),
         ) {
             Text("Se connecter", style = Sillon.type.corps)
