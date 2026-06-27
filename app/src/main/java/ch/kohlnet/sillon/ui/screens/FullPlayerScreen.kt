@@ -2,22 +2,24 @@ package ch.kohlnet.sillon.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -30,6 +32,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,9 +49,8 @@ import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 
 /**
- * Lecteur plein écran (façon iOS). ADAPTATIF :
- * - écran étroit (téléphone / Fold plié → iPhone) : pochette en haut, contrôles dessous.
- * - écran large (Fold déplié / tablette → iPad) : DEUX COLONNES — pochette à gauche, contrôles à droite.
+ * Lecteur plein écran (façon iOS). ADAPTATIF : écran étroit (iPhone) = pochette en haut, contrôles
+ * dessous ; écran large (iPad) = deux colonnes. Bouton « Paroles » qui bascule pochette ↔ paroles.
  */
 @Composable
 fun FullPlayerScreen(onClose: () -> Unit) {
@@ -54,6 +58,7 @@ fun FullPlayerScreen(onClose: () -> Unit) {
     val playing by PlayerController.isPlaying.collectAsState()
     val position by PlayerController.positionMs.collectAsState()
     val duration by PlayerController.durationMs.collectAsState()
+    var showLyrics by remember { mutableStateOf(false) }
     val t = track ?: return
 
     BoxWithConstraints(
@@ -70,12 +75,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xxl),
             ) {
-                Cover(t, Modifier.weight(1f).aspectRatio(1f))
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Controls(t, playing, position, duration)
+                MediaArea(t, showLyrics, Modifier.weight(1f).fillMaxHeight())
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                    Controls(t, playing, position, duration, showLyrics) { showLyrics = !showLyrics }
                 }
             }
         } else {
@@ -83,37 +85,48 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 modifier = Modifier.fillMaxSize().padding(Sillon.spacing.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.weight(1f))
-                Cover(t, Modifier.fillMaxWidth().aspectRatio(1f))
+                MediaArea(t, showLyrics, Modifier.fillMaxWidth().weight(1f))
                 Spacer(Modifier.height(Sillon.spacing.xl))
-                Controls(t, playing, position, duration)
-                Spacer(Modifier.weight(1f))
+                Controls(t, playing, position, duration, showLyrics) { showLyrics = !showLyrics }
+                Spacer(Modifier.height(Sillon.spacing.l))
             }
         }
 
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier.align(Alignment.TopStart),
-        ) {
+        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart)) {
             Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Fermer", tint = Sillon.colors.texteIvoire)
         }
     }
 }
 
 @Composable
-private fun Cover(t: Track, modifier: Modifier) {
-    AsyncImage(
-        model = t.coverUrl,
-        contentDescription = t.title,
-        contentScale = ContentScale.Crop,
-        modifier = modifier
-            .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
-            .background(placeholderBrush(t.title.ifBlank { t.id })),
-    )
+private fun MediaArea(t: Track, showLyrics: Boolean, modifier: Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (showLyrics) {
+            LyricsPanel(t, Modifier.fillMaxSize())
+        } else {
+            AsyncImage(
+                model = t.coverUrl,
+                contentDescription = t.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+                    .background(placeholderBrush(t.title.ifBlank { t.id })),
+            )
+        }
+    }
 }
 
 @Composable
-private fun ColumnScope.Controls(t: Track, playing: Boolean, position: Long, duration: Long) {
+private fun ColumnScope.Controls(
+    t: Track,
+    playing: Boolean,
+    position: Long,
+    duration: Long,
+    showLyrics: Boolean,
+    onToggleLyrics: () -> Unit,
+) {
     Text(
         text = t.title,
         style = Sillon.type.display,
@@ -174,6 +187,16 @@ private fun ColumnScope.Controls(t: Track, playing: Boolean, position: Long, dur
         IconButton(onClick = { PlayerController.next() }) {
             Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(36.dp))
         }
+    }
+
+    Spacer(Modifier.height(Sillon.spacing.s))
+
+    IconButton(onClick = onToggleLyrics, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+        Icon(
+            Icons.Filled.Lyrics,
+            contentDescription = "Paroles",
+            tint = if (showLyrics) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+        )
     }
 }
 

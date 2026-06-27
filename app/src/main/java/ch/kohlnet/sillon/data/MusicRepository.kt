@@ -31,6 +31,23 @@ data class Track(
     val coverUrl: String?,
 )
 
+/** Une ligne de paroles. `timeSeconds` non-nil = paroles synchronisées. */
+data class LyricLine(val text: String, val timeSeconds: Double?)
+
+/** Paroles d'un morceau. `synced` = au moins une ligne horodatée. */
+data class TrackLyrics(val synced: Boolean, val lines: List<LyricLine>) {
+    /** Index de la ligne en cours à l'instant `t` (s) : dernière ligne horodatée <= t. */
+    fun activeLineIndex(at: Double): Int? {
+        var best: Int? = null
+        var bestTime = Double.NEGATIVE_INFINITY
+        lines.forEachIndexed { i, line ->
+            val lt = line.timeSeconds ?: return@forEachIndexed
+            if (lt <= at && lt >= bestTime) { bestTime = lt; best = i }
+        }
+        return best
+    }
+}
+
 /** État de la connexion au serveur, observé par l'UI. */
 sealed interface ConnectionStatus {
     data object Idle : ConnectionStatus
@@ -151,6 +168,16 @@ object MusicRepository {
                 coverUrl = c.coverUrl(item.id, t),
             )
         }
+    }
+
+    /** Paroles d'un morceau (ou null si absentes). */
+    suspend fun lyrics(trackId: String): TrackLyrics? {
+        val c = client ?: return null
+        val t = token ?: return null
+        val dto = c.lyrics(t, trackId) ?: return null
+        val lines = dto.lyrics.map { LyricLine(it.text, it.start?.let { ticks -> ticks / 10_000_000.0 }) }
+        if (lines.isEmpty()) return null
+        return TrackLyrics(synced = lines.any { it.timeSeconds != null }, lines = lines)
     }
 
     /** Recherche d'albums sur le serveur connecté. */

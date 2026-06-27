@@ -11,6 +11,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -60,6 +61,17 @@ data class JellyfinTrack(
 @Serializable
 data class TracksResponse(
     @SerialName("Items") val items: List<JellyfinTrack> = emptyList(),
+)
+
+@Serializable
+data class LyricLineDto(
+    @SerialName("Text") val text: String = "",
+    @SerialName("Start") val start: Long? = null, // ticks .NET (100 ns) ; nil = paroles non synchronisées
+)
+
+@Serializable
+data class LyricsDto(
+    @SerialName("Lyrics") val lyrics: List<LyricLineDto> = emptyList(),
 )
 
 /**
@@ -132,6 +144,15 @@ class JellyfinClient(baseUrl: String) {
     /** URL de flux audio (fichier d'origine, façon « direct play » ; ExoPlayer gère FLAC/MP3/AAC…). */
     fun streamUrl(itemId: String, token: String): String =
         "$base/Audio/$itemId/stream?static=true&api_key=$token"
+
+    /** Paroles d'un morceau (synchronisées ou simples), ou `null` si absentes. */
+    suspend fun lyrics(token: String, itemId: String): LyricsDto? {
+        val resp = http.get("$base/Audio/$itemId/Lyrics") {
+            header("X-Emby-Authorization", authHeader(token))
+        }
+        if (!resp.status.isSuccess()) return null
+        return runCatching { resp.body<LyricsDto>() }.getOrNull()
+    }
 
     fun close() = http.close()
 }
