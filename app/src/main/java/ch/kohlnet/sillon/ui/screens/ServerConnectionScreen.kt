@@ -16,6 +16,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import ch.kohlnet.sillon.data.AppSettings
+import ch.kohlnet.sillon.data.AppearanceMode
 import ch.kohlnet.sillon.data.ConnectionStatus
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.ui.theme.Sillon
@@ -40,6 +45,7 @@ import ch.kohlnet.sillon.ui.theme.Sillon
 @Composable
 fun ServerConnectionScreen() {
     val status by MusicRepository.status.collectAsState()
+    val appearance by AppSettings.appearance.collectAsState()
 
     var url by rememberSaveable { mutableStateOf("") }
     var user by rememberSaveable { mutableStateOf("") }
@@ -56,6 +62,22 @@ fun ServerConnectionScreen() {
         verticalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
     ) {
         Text("Réglages", style = Sillon.type.display, color = Sillon.colors.texteIvoire)
+
+        Text("Apparence", style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            AppearanceMode.entries.forEachIndexed { i, mode ->
+                SegmentedButton(
+                    selected = appearance == mode,
+                    onClick = { AppSettings.setAppearance(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(i, AppearanceMode.entries.size),
+                ) {
+                    Text(mode.label, style = Sillon.type.corps)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(Sillon.spacing.m))
+
         Text(
             "Connexion au serveur",
             style = Sillon.type.displaySmall,
