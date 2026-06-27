@@ -116,20 +116,42 @@ fun AlbumGrid(albums: List<Album>, modifier: Modifier = Modifier, onClick: (Albu
 
 @Composable
 private fun AlbumCard(album: Album, onClick: () -> Unit) {
+    val servers by MusicRepository.servers.collectAsState()
+    val sourceTypes = album.sources.ifEmpty { listOf(album.serverId) }
+        .mapNotNull { sid -> servers.firstOrNull { it.id == sid }?.type }
+        .distinct()
+    val showBadge = servers.size > 1 && sourceTypes.isNotEmpty()
+    val badgeText = if (sourceTypes.size == 1) sourceTypes[0].badge else "${album.sources.size} serveurs"
+
     Column(
         verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
         modifier = Modifier.clickable(onClick = onClick),
     ) {
-        AsyncImage(
-            model = album.coverUrl,
-            contentDescription = album.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
-                .background(placeholderBrush(album.title.ifBlank { album.id })),
-        )
+        Box {
+            AsyncImage(
+                model = album.coverUrl,
+                contentDescription = album.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+                    .background(placeholderBrush(album.title.ifBlank { album.id })),
+            )
+            if (showBadge) {
+                Text(
+                    text = badgeText,
+                    style = Sillon.type.technique,
+                    color = Sillon.colors.texteIvoire,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(Sillon.spacing.xs)
+                        .clip(RoundedCornerShape(50))
+                        .background(Sillon.colors.fondNoir.copy(alpha = 0.7f))
+                        .padding(horizontal = Sillon.spacing.xs, vertical = 2.dp),
+                )
+            }
+        }
         Text(
             text = album.title,
             style = Sillon.type.corps,

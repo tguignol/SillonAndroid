@@ -53,7 +53,7 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
     }
     val current by PlayerController.current.collectAsState()
     val favorites by MusicRepository.favorites.collectAsState()
-    val isFavorite = favorites.any { it.id == album.id && it.serverId == album.serverId }
+    val isFavorite = favorites.any { it.matchKey() == album.matchKey() }
     var showArtist by remember { mutableStateOf(false) }
 
     if (showArtist && album.artist.isNotBlank()) {

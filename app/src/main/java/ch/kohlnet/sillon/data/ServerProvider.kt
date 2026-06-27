@@ -2,10 +2,10 @@ package ch.kohlnet.sillon.data
 
 import kotlinx.serialization.Serializable
 
-/** Types de serveurs musicaux pris en charge (comme l'iOS). */
-enum class ServerType(val label: String) {
-    JELLYFIN("Jellyfin"),
-    SUBSONIC("Subsonic / Navidrome"),
+/** Types de serveurs musicaux pris en charge (comme l'iOS). `badge` = libellé court (badge source). */
+enum class ServerType(val label: String, val badge: String) {
+    JELLYFIN("Jellyfin", "Jellyfin"),
+    SUBSONIC("Subsonic / Navidrome", "Navidrome"),
 }
 
 /**

@@ -12,7 +12,10 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
-/** Modèle d'album côté UI. `serverId` = serveur d'origine (multi-serveur). */
+/**
+ * Modèle d'album côté UI. `serverId` = serveur représentant (pour router tracks/lyrics).
+ * `sources` = tous les serveurs qui possèdent cet album (déduplication inter-serveurs → badge source).
+ */
 @Serializable
 data class Album(
     val id: String,
@@ -20,7 +23,11 @@ data class Album(
     val artist: String,
     val coverUrl: String?,
     val serverId: String = "",
-)
+    val sources: List<String> = emptyList(),
+) {
+    /** Clé de correspondance inter-serveurs (dédup + favoris propagés) : titre+artiste normalisés. */
+    fun matchKey(): String = (title + " " + artist).trim().lowercase().replace(Regex("\\s+"), " ")
+}
 
 /** Morceau côté UI. `serverId` = serveur d'origine. */
 data class Track(
@@ -149,11 +156,13 @@ object MusicRepository {
         }
     }
 
-    /** Ajoute/retire un album des favoris (local). */
+    /** Ajoute/retire un album des favoris (local). Correspondance par titre+artiste → un favori
+     *  s'applique à toutes les copies (favoris PROPAGÉS entre serveurs). */
     fun toggleFavorite(album: Album) {
         val current = _favorites.value
-        val updated = if (current.any { it.id == album.id && it.serverId == album.serverId }) {
-            current.filterNot { it.id == album.id && it.serverId == album.serverId }
+        val key = album.matchKey()
+        val updated = if (current.any { it.matchKey() == key }) {
+            current.filterNot { it.matchKey() == key }
         } else {
             current + album
         }
@@ -162,7 +171,7 @@ object MusicRepository {
     }
 
     fun isFavorite(album: Album): Boolean =
-        _favorites.value.any { it.id == album.id && it.serverId == album.serverId }
+        _favorites.value.any { it.matchKey() == album.matchKey() }
 
     /** Recharge les albums récents agrégés de tous les serveurs actifs. */
     suspend fun loadAlbums() {
@@ -183,12 +192,30 @@ object MusicRepository {
     suspend fun lyrics(track: Track): TrackLyrics? =
         providers[track.serverId]?.let { runCatching { it.lyrics(track.id) }.getOrNull() }
 
-    /** Exécute `block` sur chaque provider actif et fusionne (dédoublonné par serveur+id). */
+    /** Exécute `block` sur chaque provider actif, fusionne et DÉDOUBLONNE inter-serveurs. */
     private suspend fun aggregate(block: suspend (ServerProvider) -> List<Album>): List<Album> {
         val result = mutableListOf<Album>()
         for (p in providers.values.toList()) {
             result += runCatching { block(p) }.getOrDefault(emptyList())
         }
-        return result.distinctBy { it.serverId + "|" + it.id }
+        return dedup(result)
     }
+
+    /**
+     * Déduplication inter-serveurs : un même album présent sur plusieurs serveurs → UNE entrée
+     * (représentant = 1er rencontré), avec la liste de ses serveurs source. Clé = titre+artiste
+     * normalisés. (Sans effet à l'intérieur d'un seul serveur.)
+     */
+    private fun dedup(albums: List<Album>): List<Album> {
+        val groups = LinkedHashMap<String, MutableList<Album>>()
+        for (a in albums) {
+            val key = a.title.normalizedKey() + " " + a.artist.normalizedKey()
+            groups.getOrPut(key) { mutableListOf() }.add(a)
+        }
+        return groups.values.map { group ->
+            group.first().copy(sources = group.map { it.serverId }.distinct())
+        }
+    }
+
+    private fun String.normalizedKey() = trim().lowercase().replace(Regex("\\s+"), " ")
 }
