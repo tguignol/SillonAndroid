@@ -48,6 +48,20 @@ data class JellyfinItem(
     @SerialName("AlbumArtist") val albumArtist: String? = null,
 )
 
+@Serializable
+data class JellyfinTrack(
+    @SerialName("Id") val id: String,
+    @SerialName("Name") val name: String,
+    @SerialName("IndexNumber") val index: Int? = null,
+    @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
+    @SerialName("Artists") val artists: List<String>? = null,
+)
+
+@Serializable
+data class TracksResponse(
+    @SerialName("Items") val items: List<JellyfinTrack> = emptyList(),
+)
+
 /**
  * Client Jellyfin minimal (Ktor + OkHttp). Reproduit l'auth iOS : en-tête `X-Emby-Authorization`
  * (+ `Token` une fois authentifié). Lecture seule.
@@ -88,9 +102,24 @@ class JellyfinClient(baseUrl: String) {
             parameter("Fields", "AlbumArtist")
         }.body<ItemsResponse>().items
 
+    /** Morceaux d'un album, dans l'ordre des pistes. */
+    suspend fun albumTracks(token: String, userId: String, albumId: String): List<JellyfinTrack> =
+        http.get("$base/Items") {
+            header("X-Emby-Authorization", authHeader(token))
+            parameter("userId", userId)
+            parameter("parentId", albumId)
+            parameter("IncludeItemTypes", "Audio")
+            parameter("SortBy", "ParentIndexNumber,IndexNumber,SortName")
+            parameter("Fields", "Artists")
+        }.body<TracksResponse>().items
+
     /** URL chargeable de la pochette (le jeton sert d'`api_key`). */
     fun coverUrl(itemId: String, token: String, maxWidth: Int = 400): String =
         "$base/Items/$itemId/Images/Primary?maxWidth=$maxWidth&api_key=$token"
+
+    /** URL de flux audio (fichier d'origine, façon « direct play » ; ExoPlayer gère FLAC/MP3/AAC…). */
+    fun streamUrl(itemId: String, token: String): String =
+        "$base/Audio/$itemId/stream?static=true&api_key=$token"
 
     fun close() = http.close()
 }

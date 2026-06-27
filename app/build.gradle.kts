@@ -68,6 +68,8 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     // Persistance légère (config serveur)
     implementation(libs.androidx.datastore.preferences)
+    // Lecture audio
+    implementation(libs.androidx.media3.exoplayer)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

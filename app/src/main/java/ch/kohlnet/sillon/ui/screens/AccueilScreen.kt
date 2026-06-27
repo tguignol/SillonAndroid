@@ -1,6 +1,7 @@
 package ch.kohlnet.sillon.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +41,13 @@ import coil3.compose.AsyncImage
 /** Écran d'accueil : grille des albums récents tirés du serveur connecté. */
 @Composable
 fun AccueilScreen() {
+    var selected by remember { mutableStateOf<Album?>(null) }
+    val sel = selected
+    if (sel != null) {
+        AlbumDetailScreen(sel, onBack = { selected = null })
+        return
+    }
+
     val albums by MusicRepository.albums.collectAsState()
 
     Column(
@@ -68,15 +79,20 @@ fun AccueilScreen() {
                 verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
                 contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
             ) {
-                items(albums, key = { it.id }) { album -> AlbumCard(album) }
+                items(albums, key = { it.id }) { album ->
+                    AlbumCard(album, onClick = { selected = album })
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AlbumCard(album: Album) {
-    Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs)) {
+private fun AlbumCard(album: Album, onClick: () -> Unit) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
         AsyncImage(
             model = album.coverUrl,
             contentDescription = album.title,

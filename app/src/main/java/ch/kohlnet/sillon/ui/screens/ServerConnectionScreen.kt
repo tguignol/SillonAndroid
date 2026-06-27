@@ -17,6 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -117,6 +118,16 @@ fun ServerConnectionScreen() {
                 style = Sillon.type.corps,
                 color = MaterialTheme.colorScheme.error,
             )
+        }
+
+        if (status is ConnectionStatus.Connected) {
+            TextButton(onClick = { MusicRepository.disconnect() }) {
+                Text(
+                    "Se déconnecter",
+                    style = Sillon.type.corps,
+                    color = Sillon.colors.texteSourdine,
+                )
+            }
         }
     }
 }
