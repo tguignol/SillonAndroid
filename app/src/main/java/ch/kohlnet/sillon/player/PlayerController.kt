@@ -1,9 +1,14 @@
 package ch.kohlnet.sillon.player
 
+import android.content.ComponentName
 import android.content.Context
+import android.net.Uri
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import ch.kohlnet.sillon.data.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,15 +20,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Lecteur audio (Media3 / ExoPlayer). Singleton, accédé sur le thread principal. Expose le morceau
- * courant, l'état lecture/pause et la position/durée en `StateFlow` pour l'UI.
- *
- * (À venir : `MediaSessionService` pour la lecture en arrière-plan + contrôles système/écran verrouillé,
- * comme `MPNowPlayingInfoCenter` côté iOS.)
+ * Pilote la lecture via un `MediaController` connecté à [PlaybackService] (Media3). Le lecteur vit
+ * dans le service → lecture en ARRIÈRE-PLAN + contrôles système (notification, écran verrouillé),
+ * façon iOS. Expose le morceau courant, l'état lecture/pause et la position/durée en `StateFlow`.
+ * Singleton, accédé sur le thread principal.
  */
 object PlayerController {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private var player: ExoPlayer? = null
+    private var controller: MediaController? = null
     private var queue: List<Track> = emptyList()
 
     private val _current = MutableStateFlow<Track?>(null)
@@ -38,24 +42,34 @@ object PlayerController {
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
-    /** À appeler une fois au lancement (MainActivity). */
-    fun init(context: Context) {
-        if (player != null) return
-        val p = ExoPlayer.Builder(context.applicationContext).build()
-        p.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _isPlaying.value = isPlaying
-            }
+    private val listener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _isPlaying.value = isPlaying
+        }
 
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                _current.value = queue.getOrNull(p.currentMediaItemIndex)
-            }
-        })
-        player = p
-        // Boucle légère de mise à jour position/durée (thread principal, ExoPlayer y est confiné).
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            _current.value = queue.getOrNull(controller?.currentMediaItemIndex ?: -1)
+        }
+    }
+
+    /** À appeler une fois au lancement (MainActivity) : connecte le MediaController au service. */
+    fun init(context: Context) {
+        if (controller != null) return
+        val ctx = context.applicationContext
+        val token = SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))
+        val future = MediaController.Builder(ctx, token).buildAsync()
+        future.addListener({
+            val c = future.get()
+            controller = c
+            c.addListener(listener)
+            _isPlaying.value = c.isPlaying
+            _current.value = queue.getOrNull(c.currentMediaItemIndex)
+        }, ContextCompat.getMainExecutor(ctx))
+
+        // Boucle légère de mise à jour position/durée (thread principal).
         scope.launch {
             while (true) {
-                player?.let {
+                controller?.let {
                     _positionMs.value = it.currentPosition.coerceAtLeast(0)
                     _durationMs.value = it.duration.coerceAtLeast(0)
                 }
@@ -66,28 +80,40 @@ object PlayerController {
 
     /** Démarre la lecture d'une file de morceaux à partir de `startIndex`. */
     fun play(tracks: List<Track>, startIndex: Int) {
-        val p = player ?: return
+        val c = controller ?: return
         queue = tracks
-        p.setMediaItems(tracks.map { MediaItem.fromUri(it.streamUrl) }, startIndex, 0L)
-        p.prepare()
-        p.play()
+        val items = tracks.map { t ->
+            MediaItem.Builder()
+                .setUri(t.streamUrl)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(t.title)
+                        .setArtist(t.artist)
+                        .setArtworkUri(t.coverUrl?.let(Uri::parse))
+                        .build()
+                )
+                .build()
+        }
+        c.setMediaItems(items, startIndex, 0L)
+        c.prepare()
+        c.play()
         _current.value = tracks.getOrNull(startIndex)
     }
 
     fun togglePlayPause() {
-        val p = player ?: return
-        if (p.isPlaying) p.pause() else p.play()
+        val c = controller ?: return
+        if (c.isPlaying) c.pause() else c.play()
     }
 
     fun next() {
-        player?.seekToNextMediaItem()
+        controller?.seekToNextMediaItem()
     }
 
     fun previous() {
-        player?.seekToPreviousMediaItem()
+        controller?.seekToPreviousMediaItem()
     }
 
     fun seekTo(ms: Long) {
-        player?.seekTo(ms)
+        controller?.seekTo(ms)
     }
 }
