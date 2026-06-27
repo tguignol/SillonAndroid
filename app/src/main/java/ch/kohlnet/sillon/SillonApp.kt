@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.screens.AccueilScreen
+import ch.kohlnet.sillon.ui.screens.BibliothequeScreen
 import ch.kohlnet.sillon.ui.screens.ServerConnectionScreen
 import ch.kohlnet.sillon.ui.theme.Sillon
 
@@ -105,6 +106,7 @@ fun SillonApp() {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (current) {
                     SillonDestination.ACCUEIL -> AccueilScreen()
+                    SillonDestination.BIBLIOTHEQUE -> BibliothequeScreen()
                     SillonDestination.REGLAGES -> ServerConnectionScreen()
                     else -> PlaceholderScreen(current.label)
                 }

@@ -38,9 +38,15 @@ import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 
-/** Écran d'accueil : grille des albums récents tirés du serveur connecté. */
+/** Accueil + Bibliothèque : même grille d'albums (réutilisée), tirée du serveur connecté. */
 @Composable
-fun AccueilScreen() {
+fun AccueilScreen() = AlbumGridScreen(title = "Accueil", sectionLabel = "Albums récents")
+
+@Composable
+fun BibliothequeScreen() = AlbumGridScreen(title = "Bibliothèque", sectionLabel = null)
+
+@Composable
+private fun AlbumGridScreen(title: String, sectionLabel: String?) {
     var selected by remember { mutableStateOf<Album?>(null) }
     val sel = selected
     if (sel != null) {
@@ -58,7 +64,7 @@ fun AccueilScreen() {
             .padding(top = Sillon.spacing.l),
     ) {
         Text(
-            text = "Accueil",
+            text = title,
             style = Sillon.type.display,
             color = Sillon.colors.texteIvoire,
         )
@@ -67,12 +73,14 @@ fun AccueilScreen() {
         if (albums.isEmpty()) {
             EmptyHint()
         } else {
-            Text(
-                text = "Albums récents",
-                style = Sillon.type.displaySmall,
-                color = Sillon.colors.texteSourdine,
-            )
-            Spacer(Modifier.height(Sillon.spacing.m))
+            if (sectionLabel != null) {
+                Text(
+                    text = sectionLabel,
+                    style = Sillon.type.displaySmall,
+                    color = Sillon.colors.texteSourdine,
+                )
+                Spacer(Modifier.height(Sillon.spacing.m))
+            }
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(150.dp),
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
