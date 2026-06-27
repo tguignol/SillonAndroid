@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -52,9 +53,11 @@ import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 
+private enum class PlayerPane { COVER, LYRICS, QUEUE }
+
 /**
- * Lecteur plein écran (façon iOS). ADAPTATIF : écran étroit (iPhone) = pochette en haut, contrôles
- * dessous ; écran large (iPad) = deux colonnes. Bouton « Paroles » qui bascule pochette ↔ paroles.
+ * Lecteur plein écran (façon iOS). ADAPTATIF : étroit (iPhone) = pochette en haut, contrôles dessous ;
+ * large (iPad) = deux colonnes. La zone média bascule entre pochette / paroles / file d'attente.
  */
 @Composable
 fun FullPlayerScreen(onClose: () -> Unit) {
@@ -62,7 +65,7 @@ fun FullPlayerScreen(onClose: () -> Unit) {
     val playing by PlayerController.isPlaying.collectAsState()
     val position by PlayerController.positionMs.collectAsState()
     val duration by PlayerController.durationMs.collectAsState()
-    var showLyrics by remember { mutableStateOf(false) }
+    var pane by remember { mutableStateOf(PlayerPane.COVER) }
     val t = track ?: return
 
     BoxWithConstraints(
@@ -72,16 +75,15 @@ fun FullPlayerScreen(onClose: () -> Unit) {
             .safeDrawingPadding(),
     ) {
         val wide = maxWidth >= 600.dp
-
         if (wide) {
             Row(
                 modifier = Modifier.fillMaxSize().padding(Sillon.spacing.xxl),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xxl),
             ) {
-                MediaArea(t, showLyrics, Modifier.weight(1f).fillMaxHeight())
+                MediaArea(t, pane, Modifier.weight(1f).fillMaxHeight())
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                    Controls(t, playing, position, duration, showLyrics) { showLyrics = !showLyrics }
+                    Controls(t, playing, position, duration, pane) { pane = it }
                 }
             }
         } else {
@@ -89,9 +91,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 modifier = Modifier.fillMaxSize().padding(Sillon.spacing.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                MediaArea(t, showLyrics, Modifier.fillMaxWidth().weight(1f))
+                MediaArea(t, pane, Modifier.fillMaxWidth().weight(1f))
                 Spacer(Modifier.height(Sillon.spacing.xl))
-                Controls(t, playing, position, duration, showLyrics) { showLyrics = !showLyrics }
+                Controls(t, playing, position, duration, pane) { pane = it }
                 Spacer(Modifier.height(Sillon.spacing.l))
             }
         }
@@ -103,12 +105,12 @@ fun FullPlayerScreen(onClose: () -> Unit) {
 }
 
 @Composable
-private fun MediaArea(t: Track, showLyrics: Boolean, modifier: Modifier) {
+private fun MediaArea(t: Track, pane: PlayerPane, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
-        if (showLyrics) {
-            LyricsPanel(t, Modifier.fillMaxSize())
-        } else {
-            AsyncImage(
+        when (pane) {
+            PlayerPane.LYRICS -> LyricsPanel(t, Modifier.fillMaxSize())
+            PlayerPane.QUEUE -> QueuePanel(Modifier.fillMaxSize())
+            PlayerPane.COVER -> AsyncImage(
                 model = t.coverUrl,
                 contentDescription = t.title,
                 contentScale = ContentScale.Crop,
@@ -128,8 +130,8 @@ private fun ColumnScope.Controls(
     playing: Boolean,
     position: Long,
     duration: Long,
-    showLyrics: Boolean,
-    onToggleLyrics: () -> Unit,
+    pane: PlayerPane,
+    onSetPane: (PlayerPane) -> Unit,
 ) {
     Text(
         text = t.title,
@@ -181,12 +183,7 @@ private fun ColumnScope.Controls(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = { PlayerController.toggleShuffle() }) {
-            Icon(
-                Icons.Filled.Shuffle,
-                contentDescription = "Aléatoire",
-                tint = if (shuffle) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
-                modifier = Modifier.size(24.dp),
-            )
+            Icon(Icons.Filled.Shuffle, "Aléatoire", tint = tintIf(shuffle), modifier = Modifier.size(24.dp))
         }
         IconButton(onClick = { PlayerController.previous() }) {
             Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(34.dp))
@@ -206,7 +203,7 @@ private fun ColumnScope.Controls(
             Icon(
                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                 contentDescription = "Répéter",
-                tint = if (repeatMode != Player.REPEAT_MODE_OFF) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+                tint = tintIf(repeatMode != Player.REPEAT_MODE_OFF),
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -214,14 +211,22 @@ private fun ColumnScope.Controls(
 
     Spacer(Modifier.height(Sillon.spacing.s))
 
-    IconButton(onClick = onToggleLyrics, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-        Icon(
-            Icons.Filled.Lyrics,
-            contentDescription = "Paroles",
-            tint = if (showLyrics) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
-        )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xxl, Alignment.CenterHorizontally),
+    ) {
+        IconButton(onClick = { onSetPane(if (pane == PlayerPane.LYRICS) PlayerPane.COVER else PlayerPane.LYRICS) }) {
+            Icon(Icons.Filled.Lyrics, "Paroles", tint = tintIf(pane == PlayerPane.LYRICS))
+        }
+        IconButton(onClick = { onSetPane(if (pane == PlayerPane.QUEUE) PlayerPane.COVER else PlayerPane.QUEUE) }) {
+            Icon(Icons.Filled.QueueMusic, "File d'attente", tint = tintIf(pane == PlayerPane.QUEUE))
+        }
     }
 }
+
+@Composable
+private fun tintIf(active: Boolean) =
+    if (active) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine
 
 private fun formatTime(ms: Long): String {
     val totalSec = (ms / 1000).coerceAtLeast(0)

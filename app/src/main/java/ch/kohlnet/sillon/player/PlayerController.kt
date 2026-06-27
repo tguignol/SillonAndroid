@@ -28,7 +28,6 @@ import kotlinx.coroutines.launch
 object PlayerController {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var controller: MediaController? = null
-    private var queue: List<Track> = emptyList()
 
     private val _current = MutableStateFlow<Track?>(null)
     val current: StateFlow<Track?> = _current.asStateFlow()
@@ -41,6 +40,9 @@ object PlayerController {
 
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
+
+    private val _queue = MutableStateFlow<List<Track>>(emptyList())
+    val queue: StateFlow<List<Track>> = _queue.asStateFlow()
 
     private val _shuffle = MutableStateFlow(false)
     val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
@@ -55,7 +57,7 @@ object PlayerController {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            _current.value = queue.getOrNull(controller?.currentMediaItemIndex ?: -1)
+            _current.value = _queue.value.getOrNull(controller?.currentMediaItemIndex ?: -1)
         }
 
         override fun onShuffleModeEnabledChanged(enabled: Boolean) {
@@ -78,7 +80,7 @@ object PlayerController {
             controller = c
             c.addListener(listener)
             _isPlaying.value = c.isPlaying
-            _current.value = queue.getOrNull(c.currentMediaItemIndex)
+            _current.value = _queue.value.getOrNull(c.currentMediaItemIndex)
         }, ContextCompat.getMainExecutor(ctx))
 
         // Boucle légère de mise à jour position/durée (thread principal).
@@ -96,7 +98,7 @@ object PlayerController {
     /** Démarre la lecture d'une file de morceaux à partir de `startIndex`. */
     fun play(tracks: List<Track>, startIndex: Int) {
         val c = controller ?: return
-        queue = tracks
+        _queue.value = tracks
         val items = tracks.map { t ->
             MediaItem.Builder()
                 .setUri(t.streamUrl)
@@ -130,6 +132,13 @@ object PlayerController {
 
     fun seekTo(ms: Long) {
         controller?.seekTo(ms)
+    }
+
+    /** Saute au morceau d'index `index` dans la file. */
+    fun playIndex(index: Int) {
+        val c = controller ?: return
+        c.seekTo(index, 0L)
+        c.play()
     }
 
     fun toggleShuffle() {
