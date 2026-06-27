@@ -1,6 +1,7 @@
 package ch.kohlnet.sillon
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +29,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.screens.AccueilScreen
 import ch.kohlnet.sillon.ui.screens.BibliothequeScreen
+import ch.kohlnet.sillon.ui.screens.FullPlayerScreen
 import ch.kohlnet.sillon.ui.screens.ServerConnectionScreen
 import ch.kohlnet.sillon.ui.theme.Sillon
 
@@ -53,14 +57,16 @@ enum class SillonDestination(val label: String, val icon: ImageVector) {
 }
 
 /**
- * Racine de l'app : navigation ADAPTATIVE. `NavigationSuiteScaffold` choisit tout seul la barre du
- * bas (écran étroit = Fold plié / téléphone) ou un rail latéral (écran large = Fold déplié / tablette),
- * en miroir de l'iOS (onglets en portrait, barre latérale en paysage/macOS).
+ * Racine de l'app : navigation ADAPTATIVE (`NavigationSuiteScaffold` : barre du bas si écran étroit
+ * = Fold plié/téléphone → version iPhone ; rail latéral si large = Fold déplié/tablette → version iPad).
+ * Par-dessus, le lecteur plein écran s'ouvre depuis la barre « Lecture en cours ».
  */
 @Composable
 fun SillonApp() {
     var index by rememberSaveable { mutableIntStateOf(0) }
     val current = SillonDestination.entries[index]
+    var showPlayer by remember { mutableStateOf(false) }
+    val playingTrack by PlayerController.current.collectAsState()
 
     // Sélection en CUIVRE (accent musical), inactifs en sourdine. Le teal reste réservé aux données
     // techniques, jamais à la navigation.
@@ -88,37 +94,43 @@ fun SillonApp() {
         ),
     )
 
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            SillonDestination.entries.forEach { dest ->
-                item(
-                    selected = dest == current,
-                    onClick = { index = dest.ordinal },
-                    icon = { Icon(dest.icon, contentDescription = dest.label) },
-                    label = { Text(dest.label, style = Sillon.type.corps) },
-                    colors = itemColors,
-                )
-            }
-        },
-        containerColor = Sillon.colors.fondNoir,
-    ) {
-        Column(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (current) {
-                    SillonDestination.ACCUEIL -> AccueilScreen()
-                    SillonDestination.BIBLIOTHEQUE -> BibliothequeScreen()
-                    SillonDestination.REGLAGES -> ServerConnectionScreen()
-                    else -> PlaceholderScreen(current.label)
+    Box(Modifier.fillMaxSize()) {
+        NavigationSuiteScaffold(
+            navigationSuiteItems = {
+                SillonDestination.entries.forEach { dest ->
+                    item(
+                        selected = dest == current,
+                        onClick = { index = dest.ordinal },
+                        icon = { Icon(dest.icon, contentDescription = dest.label) },
+                        label = { Text(dest.label, style = Sillon.type.corps) },
+                        colors = itemColors,
+                    )
                 }
+            },
+            containerColor = Sillon.colors.fondNoir,
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when (current) {
+                        SillonDestination.ACCUEIL -> AccueilScreen()
+                        SillonDestination.BIBLIOTHEQUE -> BibliothequeScreen()
+                        SillonDestination.REGLAGES -> ServerConnectionScreen()
+                        else -> PlaceholderScreen(current.label)
+                    }
+                }
+                NowPlayingBar(onOpen = { showPlayer = true })
             }
-            NowPlayingBar()
+        }
+
+        if (showPlayer && playingTrack != null) {
+            FullPlayerScreen(onClose = { showPlayer = false })
         }
     }
 }
 
-/** Barre « Lecture en cours » (façon iOS) : titre/artiste + lecture/pause. Visible dès qu'un morceau joue. */
+/** Barre « Lecture en cours » (façon iOS) : titre/artiste + lecture/pause ; tap = lecteur plein écran. */
 @Composable
-private fun NowPlayingBar() {
+private fun NowPlayingBar(onOpen: () -> Unit) {
     val track by PlayerController.current.collectAsState()
     val playing by PlayerController.isPlaying.collectAsState()
     val t = track ?: return
@@ -127,6 +139,7 @@ private fun NowPlayingBar() {
         modifier = Modifier
             .fillMaxWidth()
             .background(Sillon.colors.surfaceElevee)
+            .clickable(onClick = onOpen)
             .navigationBarsPadding()
             .padding(horizontal = Sillon.spacing.l, vertical = Sillon.spacing.s),
         verticalAlignment = Alignment.CenterVertically,

@@ -26,6 +26,7 @@ data class Track(
     val index: Int?,
     val durationMs: Long?,
     val streamUrl: String,
+    val coverUrl: String?,
 )
 
 /** État de la connexion au serveur, observé par l'UI. */
@@ -147,6 +148,7 @@ object MusicRepository {
                 index = tk.index,
                 durationMs = tk.runTimeTicks?.div(10_000),
                 streamUrl = c.streamUrl(tk.id, t),
+                coverUrl = c.coverUrl(tk.id, t),
             )
         }
     }
