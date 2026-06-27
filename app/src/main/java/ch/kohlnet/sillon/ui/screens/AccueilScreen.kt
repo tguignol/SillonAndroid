@@ -39,22 +39,34 @@ import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 
 /** Accueil + Bibliothèque : même grille d'albums (réutilisée), tirée du serveur connecté. */
-@Composable
-fun AccueilScreen() = AlbumGridScreen(title = "Accueil", sectionLabel = "Albums récents")
+private const val EMPTY_LIBRARY = "Aucun album.\nConnecte-toi à un serveur dans Réglages."
 
 @Composable
-fun BibliothequeScreen() = AlbumGridScreen(title = "Bibliothèque", sectionLabel = null)
+fun AccueilScreen() {
+    val albums by MusicRepository.albums.collectAsState()
+    AlbumGridScreen("Accueil", "Albums récents", albums, EMPTY_LIBRARY)
+}
 
 @Composable
-private fun AlbumGridScreen(title: String, sectionLabel: String?) {
+fun BibliothequeScreen() {
+    val albums by MusicRepository.albums.collectAsState()
+    AlbumGridScreen("Bibliothèque", null, albums, EMPTY_LIBRARY)
+}
+
+@Composable
+fun FavorisScreen() {
+    val favorites by MusicRepository.favorites.collectAsState()
+    AlbumGridScreen("Favoris", null, favorites, "Aucun favori.\nTouche le cœur sur un album.")
+}
+
+@Composable
+private fun AlbumGridScreen(title: String, sectionLabel: String?, albums: List<Album>, emptyText: String) {
     var selected by remember { mutableStateOf<Album?>(null) }
     val sel = selected
     if (sel != null) {
         AlbumDetailScreen(sel, onBack = { selected = null })
         return
     }
-
-    val albums by MusicRepository.albums.collectAsState()
 
     Column(
         modifier = Modifier
@@ -71,7 +83,7 @@ private fun AlbumGridScreen(title: String, sectionLabel: String?) {
         Spacer(Modifier.height(Sillon.spacing.m))
 
         if (albums.isEmpty()) {
-            EmptyHint()
+            EmptyHint(emptyText)
         } else {
             if (sectionLabel != null) {
                 Text(
@@ -81,16 +93,23 @@ private fun AlbumGridScreen(title: String, sectionLabel: String?) {
                 )
                 Spacer(Modifier.height(Sillon.spacing.m))
             }
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(150.dp),
-                horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
-                verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
-                contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
-            ) {
-                items(albums, key = { it.id }) { album ->
-                    AlbumCard(album, onClick = { selected = album })
-                }
-            }
+            AlbumGrid(albums) { selected = it }
+        }
+    }
+}
+
+/** Grille d'albums réutilisable (Accueil, Bibliothèque, Favoris, Recherche). */
+@Composable
+fun AlbumGrid(albums: List<Album>, modifier: Modifier = Modifier, onClick: (Album) -> Unit) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(150.dp),
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
+        contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+    ) {
+        items(albums, key = { it.id }) { album ->
+            AlbumCard(album, onClick = { onClick(album) })
         }
     }
 }
@@ -131,10 +150,10 @@ private fun AlbumCard(album: Album, onClick: () -> Unit) {
 }
 
 @Composable
-private fun EmptyHint() {
+private fun EmptyHint(text: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            text = "Aucun album.\nConnecte-toi à un serveur dans Réglages.",
+            text = text,
             style = Sillon.type.corps,
             color = Sillon.colors.texteSourdine,
             textAlign = TextAlign.Center,

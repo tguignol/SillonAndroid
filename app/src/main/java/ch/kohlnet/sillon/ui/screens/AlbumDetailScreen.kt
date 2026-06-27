@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -50,6 +52,8 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
         tracks = MusicRepository.tracks(album.id)
     }
     val current by PlayerController.current.collectAsState()
+    val favorites by MusicRepository.favorites.collectAsState()
+    val isFavorite = favorites.any { it.id == album.id }
 
     Column(
         modifier = Modifier
@@ -57,12 +61,20 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
             .statusBarsPadding()
             .padding(horizontal = Sillon.spacing.xl),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Retour",
                     tint = Sillon.colors.texteIvoire,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { MusicRepository.toggleFavorite(album) }) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = "Favori",
+                    tint = if (isFavorite) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
                 )
             }
         }

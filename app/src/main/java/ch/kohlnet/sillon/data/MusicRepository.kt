@@ -9,8 +9,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 
 /** Modèle d'album côté UI (indépendant du serveur). */
+@Serializable
 data class Album(
     val id: String,
     val title: String,
@@ -57,11 +59,15 @@ object MusicRepository {
     private val _albums = MutableStateFlow<List<Album>>(emptyList())
     val albums: StateFlow<List<Album>> = _albums.asStateFlow()
 
+    private val _favorites = MutableStateFlow<List<Album>>(emptyList())
+    val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
+
     /** À appeler une fois au lancement (MainActivity). Restaure la connexion persistée si présente. */
     fun init(context: Context) {
         if (initialized) return
         initialized = true
         appContext = context.applicationContext
+        scope.launch { _favorites.value = FavoritesStore.load(context.applicationContext) }
         scope.launch {
             val saved = ServerStore.load(context.applicationContext) ?: return@launch
             client = JellyfinClient(saved.baseUrl)
@@ -119,6 +125,18 @@ object MusicRepository {
         _status.value = ConnectionStatus.Idle
     }
 
+    /** Ajoute/retire un album des favoris (local). */
+    fun toggleFavorite(album: Album) {
+        val current = _favorites.value
+        val updated = if (current.any { it.id == album.id }) {
+            current.filterNot { it.id == album.id }
+        } else {
+            current + album
+        }
+        _favorites.value = updated
+        appContext?.let { ctx -> scope.launch { FavoritesStore.save(ctx, updated) } }
+    }
+
     /** Recharge la liste des albums depuis le serveur connecté. */
     suspend fun loadAlbums() {
         val c = client ?: return
@@ -126,6 +144,21 @@ object MusicRepository {
         val u = userId ?: return
         val items = c.albums(t, u)
         _albums.value = items.map { item ->
+            Album(
+                id = item.id,
+                title = item.name,
+                artist = item.albumArtist.orEmpty(),
+                coverUrl = c.coverUrl(item.id, t),
+            )
+        }
+    }
+
+    /** Recherche d'albums sur le serveur connecté. */
+    suspend fun searchAlbums(query: String): List<Album> {
+        val c = client ?: return emptyList()
+        val t = token ?: return emptyList()
+        val u = userId ?: return emptyList()
+        return c.searchAlbums(t, u, query).map { item ->
             Album(
                 id = item.id,
                 title = item.name,

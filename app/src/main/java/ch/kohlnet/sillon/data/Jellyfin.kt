@@ -102,6 +102,18 @@ class JellyfinClient(baseUrl: String) {
             parameter("Fields", "AlbumArtist")
         }.body<ItemsResponse>().items
 
+    /** Recherche d'albums par terme. */
+    suspend fun searchAlbums(token: String, userId: String, query: String, limit: Int = 50): List<JellyfinItem> =
+        http.get("$base/Items") {
+            header("X-Emby-Authorization", authHeader(token))
+            parameter("userId", userId)
+            parameter("searchTerm", query)
+            parameter("IncludeItemTypes", "MusicAlbum")
+            parameter("Recursive", "true")
+            parameter("Limit", limit.toString())
+            parameter("Fields", "AlbumArtist")
+        }.body<ItemsResponse>().items
+
     /** Morceaux d'un album, dans l'ordre des pistes. */
     suspend fun albumTracks(token: String, userId: String, albumId: String): List<JellyfinTrack> =
         http.get("$base/Items") {

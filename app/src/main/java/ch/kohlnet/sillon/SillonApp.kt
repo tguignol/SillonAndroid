@@ -41,7 +41,9 @@ import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.screens.AccueilScreen
 import ch.kohlnet.sillon.ui.screens.BibliothequeScreen
+import ch.kohlnet.sillon.ui.screens.FavorisScreen
 import ch.kohlnet.sillon.ui.screens.FullPlayerScreen
+import ch.kohlnet.sillon.ui.screens.RechercheScreen
 import ch.kohlnet.sillon.ui.screens.ServerConnectionScreen
 import ch.kohlnet.sillon.ui.theme.Sillon
 
@@ -114,6 +116,8 @@ fun SillonApp() {
                     when (current) {
                         SillonDestination.ACCUEIL -> AccueilScreen()
                         SillonDestination.BIBLIOTHEQUE -> BibliothequeScreen()
+                        SillonDestination.FAVORIS -> FavorisScreen()
+                        SillonDestination.RECHERCHE -> RechercheScreen()
                         SillonDestination.REGLAGES -> ServerConnectionScreen()
                         else -> PlaceholderScreen(current.label)
                     }

@@ -14,7 +14,7 @@ data class SavedServer(
     val username: String,
 )
 
-private val Context.dataStore by preferencesDataStore(name = "sillon")
+internal val Context.dataStore by preferencesDataStore(name = "sillon")
 
 /**
  * Persistance légère de la connexion (DataStore). On stocke l'URL, l'identifiant utilisateur, le
