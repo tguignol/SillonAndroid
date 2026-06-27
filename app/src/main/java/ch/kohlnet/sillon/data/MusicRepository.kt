@@ -180,18 +180,30 @@ object MusicRepository {
         return TrackLyrics(synced = lines.any { it.timeSeconds != null }, lines = lines)
     }
 
-    /** Recherche d'albums sur le serveur connecté. */
+    /** Recherche d'albums (par NOM d'album ET par ARTISTE) sur le serveur connecté. */
     suspend fun searchAlbums(query: String): List<Album> {
         val c = client ?: return emptyList()
         val t = token ?: return emptyList()
         val u = userId ?: return emptyList()
-        return c.searchAlbums(t, u, query).map { item ->
-            Album(
-                id = item.id,
-                title = item.name,
-                artist = item.albumArtist.orEmpty(),
-                coverUrl = c.coverUrl(item.id, t),
-            )
+        val byName = c.searchAlbums(t, u, query)
+        val byArtist = c.searchArtists(t, u, query).flatMap {
+            runCatching { c.albumsByArtist(t, u, it.id) }.getOrDefault(emptyList())
+        }
+        return (byName + byArtist).distinctBy { it.id }.map { item ->
+            Album(item.id, item.name, item.albumArtist.orEmpty(), c.coverUrl(item.id, t))
+        }
+    }
+
+    /** Albums d'un artiste (recherché par son nom). */
+    suspend fun albumsByArtistName(name: String): List<Album> {
+        val c = client ?: return emptyList()
+        val t = token ?: return emptyList()
+        val u = userId ?: return emptyList()
+        val artists = c.searchArtists(t, u, name)
+        val artist = artists.firstOrNull { it.name.equals(name, ignoreCase = true) }
+            ?: artists.firstOrNull() ?: return emptyList()
+        return c.albumsByArtist(t, u, artist.id).map { item ->
+            Album(item.id, item.name, item.albumArtist.orEmpty(), c.coverUrl(item.id, t))
         }
     }
 

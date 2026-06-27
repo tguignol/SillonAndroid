@@ -54,6 +54,12 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
     val current by PlayerController.current.collectAsState()
     val favorites by MusicRepository.favorites.collectAsState()
     val isFavorite = favorites.any { it.id == album.id }
+    var showArtist by remember { mutableStateOf(false) }
+
+    if (showArtist && album.artist.isNotBlank()) {
+        ArtistDetailScreen(album.artist, onBack = { showArtist = false })
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -92,7 +98,12 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs)) {
                 Text(album.title, style = Sillon.type.display, color = Sillon.colors.texteIvoire)
                 if (album.artist.isNotBlank()) {
-                    Text(album.artist, style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+                    Text(
+                        album.artist,
+                        style = Sillon.type.corps,
+                        color = Sillon.colors.texteSourdine,
+                        modifier = Modifier.clickable { showArtist = true },
+                    )
                 }
             }
         }
