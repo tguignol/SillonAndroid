@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -37,6 +38,14 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        // Les libs réseau récentes (Ktor 3.5 / kotlinx-serialization 1.11) sont compilées avec un
+        // Kotlin un cran plus récent que le nôtre (2.2.10) ; on autorise la lecture de leurs métadonnées.
+        freeCompilerArgs.add("-Xskip-metadata-version-check")
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -48,6 +57,17 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // Réseau (Jellyfin/Subsonic) + JSON
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.kotlinx.serialization.json)
+    // Pochettes
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    // Persistance légère (config serveur)
+    implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

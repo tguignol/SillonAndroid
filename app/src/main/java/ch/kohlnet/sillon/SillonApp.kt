@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import ch.kohlnet.sillon.ui.screens.AccueilScreen
+import ch.kohlnet.sillon.ui.screens.ServerConnectionScreen
 import ch.kohlnet.sillon.ui.theme.Sillon
 
 /**
@@ -88,6 +90,7 @@ fun SillonApp() {
     ) {
         when (current) {
             SillonDestination.ACCUEIL -> AccueilScreen()
+            SillonDestination.REGLAGES -> ServerConnectionScreen()
             else -> PlaceholderScreen(current.label)
         }
     }
