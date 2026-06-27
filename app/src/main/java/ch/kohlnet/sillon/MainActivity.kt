@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SillonTheme {
-                AccueilScreen()
+                SillonApp()
             }
         }
     }

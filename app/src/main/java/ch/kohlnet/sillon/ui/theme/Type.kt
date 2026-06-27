@@ -2,22 +2,29 @@ package ch.kohlnet.sillon.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import ch.kohlnet.sillon.R
 
 /**
  * Typographie Sillon — miroir de `Typo` (iOS `Theme.swift`).
  *
- * iOS utilise les polices SYSTÈME d'Apple : New York (serif), SF Mono, SF Pro. Sur Android,
- * pour matcher au plus près New York/SF Mono, on embarquera plus tard **Source Serif 4** et une
- * mono (JetBrains/Roboto Mono) dans `res/font/`. Pour l'instant on s'appuie sur les familles
- * système (`FontFamily.Serif` = Noto Serif, `FontFamily.Monospace`), déjà proches visuellement.
+ * iOS utilise les polices SYSTÈME d'Apple : New York (serif), SF Mono, SF Pro. Sur Android, on
+ * EMBARQUE des équivalents libres (OFL) pour matcher le rendu : **Source Serif 4** (≈ New York) et
+ * **JetBrains Mono** (≈ SF Mono), dans `res/font/`. Le corps reste sur la police système (≈ SF Pro).
  *
  * Tailles : iOS = Dynamic Type ; on garde des `sp` (et non des `dp`) pour respecter l'accessibilité.
  */
-val SillonSerif: FontFamily = FontFamily.Serif      // ≈ New York (à remplacer par Source Serif 4)
-val SillonMono: FontFamily = FontFamily.Monospace   // ≈ SF Mono (à remplacer par JetBrains Mono)
+val SillonSerif = FontFamily(
+    Font(R.font.source_serif_regular, FontWeight.Normal),
+    Font(R.font.source_serif_medium, FontWeight.Medium),
+    Font(R.font.source_serif_semibold, FontWeight.SemiBold),
+)
+val SillonMono = FontFamily(
+    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
+)
 
 /** Tokens typographiques nommés, comme l'enum `Typo` iOS. Accès via `Sillon.type`. */
 object SillonType {
