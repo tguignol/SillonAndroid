@@ -42,6 +42,13 @@ object PlayerController {
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
+    private val _shuffle = MutableStateFlow(false)
+    val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
+
+    /** `Player.REPEAT_MODE_OFF` / `_ALL` / `_ONE`. */
+    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
+    val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
@@ -49,6 +56,14 @@ object PlayerController {
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             _current.value = queue.getOrNull(controller?.currentMediaItemIndex ?: -1)
+        }
+
+        override fun onShuffleModeEnabledChanged(enabled: Boolean) {
+            _shuffle.value = enabled
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _repeatMode.value = repeatMode
         }
     }
 
@@ -115,5 +130,20 @@ object PlayerController {
 
     fun seekTo(ms: Long) {
         controller?.seekTo(ms)
+    }
+
+    fun toggleShuffle() {
+        controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }
+    }
+
+    /** Cycle Off → All → One → Off. */
+    fun cycleRepeat() {
+        controller?.let {
+            it.repeatMode = when (it.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            }
+        }
     }
 }

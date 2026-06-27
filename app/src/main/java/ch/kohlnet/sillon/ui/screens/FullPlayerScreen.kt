@@ -22,6 +22,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
@@ -42,6 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
 import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.theme.Sillon
@@ -168,13 +172,24 @@ private fun ColumnScope.Controls(
 
     Spacer(Modifier.height(Sillon.spacing.l))
 
+    val shuffle by PlayerController.shuffle.collectAsState()
+    val repeatMode by PlayerController.repeatMode.collectAsState()
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xl, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.l, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        IconButton(onClick = { PlayerController.toggleShuffle() }) {
+            Icon(
+                Icons.Filled.Shuffle,
+                contentDescription = "Aléatoire",
+                tint = if (shuffle) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+                modifier = Modifier.size(24.dp),
+            )
+        }
         IconButton(onClick = { PlayerController.previous() }) {
-            Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(36.dp))
+            Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(34.dp))
         }
         IconButton(onClick = { PlayerController.togglePlayPause() }) {
             Icon(
@@ -185,7 +200,15 @@ private fun ColumnScope.Controls(
             )
         }
         IconButton(onClick = { PlayerController.next() }) {
-            Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(36.dp))
+            Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(34.dp))
+        }
+        IconButton(onClick = { PlayerController.cycleRepeat() }) {
+            Icon(
+                if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                contentDescription = "Répéter",
+                tint = if (repeatMode != Player.REPEAT_MODE_OFF) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+                modifier = Modifier.size(24.dp),
+            )
         }
     }
 
