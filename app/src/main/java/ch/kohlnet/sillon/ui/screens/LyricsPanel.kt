@@ -59,13 +59,13 @@ fun LyricsPanel(track: Track, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val position by PlayerController.positionMs.collectAsState()
 
-    LaunchedEffect(track.id) {
+    LaunchedEffect(track.id, track.serverId) {
         loaded = false
         lyrics = null
         translations = emptyMap()
         showTranslation = false
         detectedLang = null
-        val l = MusicRepository.lyrics(track.id)
+        val l = MusicRepository.lyrics(track)
         lyrics = l
         loaded = true
         if (l != null && l.lines.isNotEmpty()) {

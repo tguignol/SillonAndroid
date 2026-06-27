@@ -1,0 +1,64 @@
+package ch.kohlnet.sillon.data
+
+import kotlinx.serialization.Serializable
+
+/** Types de serveurs musicaux pris en charge (comme l'iOS). */
+enum class ServerType(val label: String) {
+    JELLYFIN("Jellyfin"),
+    SUBSONIC("Subsonic / Navidrome"),
+}
+
+/**
+ * Configuration d'un serveur (persistée). Selon le type, soit un jeton Jellyfin (token+userId),
+ * soit le mot de passe Subsonic (pour dériver jeton+sel à chaque requête). `active` = pris en compte
+ * dans la bibliothèque agrégée.
+ *
+ * (Stockage local ; à chiffrer plus tard façon Keychain — cf. note sécurité.)
+ */
+@Serializable
+data class ServerConfig(
+    val id: String,
+    val type: ServerType,
+    val name: String,
+    val baseUrl: String,
+    val username: String,
+    val active: Boolean = true,
+    val token: String? = null,    // Jellyfin
+    val userId: String? = null,   // Jellyfin
+    val password: String? = null, // Subsonic
+)
+
+/**
+ * Interface commune à tous les serveurs (Jellyfin, Subsonic…). Chaque provider étiquette ses
+ * `Album`/`Track` avec `config.id` (pour router tracks/lyrics/badge source).
+ */
+interface ServerProvider {
+    val config: ServerConfig
+    suspend fun recentAlbums(limit: Int = 60): List<Album>
+    suspend fun searchAlbums(query: String): List<Album>
+    suspend fun albumsByArtistName(name: String): List<Album>
+    suspend fun tracks(albumId: String): List<Track>
+    suspend fun lyrics(trackId: String): TrackLyrics?
+    fun close()
+}
+
+/** Crée le provider correspondant à une config. */
+fun providerFor(config: ServerConfig): ServerProvider = when (config.type) {
+    ServerType.JELLYFIN -> JellyfinProvider(config)
+    ServerType.SUBSONIC -> SubsonicProvider(config)
+}
+
+/**
+ * Authentifie un nouveau serveur et renvoie sa [ServerConfig] prête à persister (jette en cas d'échec).
+ * `id` est généré par l'appelant.
+ */
+suspend fun authenticateServer(
+    id: String,
+    type: ServerType,
+    url: String,
+    username: String,
+    password: String,
+): ServerConfig = when (type) {
+    ServerType.JELLYFIN -> JellyfinProvider.authenticate(id, url, username, password)
+    ServerType.SUBSONIC -> SubsonicProvider.authenticate(id, url, username, password)
+}

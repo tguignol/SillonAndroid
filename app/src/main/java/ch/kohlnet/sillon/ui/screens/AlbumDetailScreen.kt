@@ -48,12 +48,12 @@ import coil3.compose.AsyncImage
 @Composable
 fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
-    LaunchedEffect(album.id) {
-        tracks = MusicRepository.tracks(album.id)
+    LaunchedEffect(album.id, album.serverId) {
+        tracks = MusicRepository.tracks(album)
     }
     val current by PlayerController.current.collectAsState()
     val favorites by MusicRepository.favorites.collectAsState()
-    val isFavorite = favorites.any { it.id == album.id }
+    val isFavorite = favorites.any { it.id == album.id && it.serverId == album.serverId }
     var showArtist by remember { mutableStateOf(false) }
 
     if (showArtist && album.artist.isNotBlank()) {

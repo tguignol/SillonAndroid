@@ -10,17 +10,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
-/** Modèle d'album côté UI (indépendant du serveur). */
+/** Modèle d'album côté UI. `serverId` = serveur d'origine (multi-serveur). */
 @Serializable
 data class Album(
     val id: String,
     val title: String,
     val artist: String,
     val coverUrl: String?,
+    val serverId: String = "",
 )
 
-/** Morceau côté UI. */
+/** Morceau côté UI. `serverId` = serveur d'origine. */
 data class Track(
     val id: String,
     val title: String,
@@ -29,6 +31,7 @@ data class Track(
     val durationMs: Long?,
     val streamUrl: String,
     val coverUrl: String?,
+    val serverId: String = "",
 )
 
 /** Une ligne de paroles. `timeSeconds` non-nil = paroles synchronisées. */
@@ -48,27 +51,29 @@ data class TrackLyrics(val synced: Boolean, val lines: List<LyricLine>) {
     }
 }
 
-/** État de la connexion au serveur, observé par l'UI. */
+/** État de l'opération « ajouter un serveur », observé par l'UI. */
 sealed interface ConnectionStatus {
     data object Idle : ConnectionStatus
     data object Connecting : ConnectionStatus
-    data class Connected(val userName: String) : ConnectionStatus
+    data class Connected(val name: String) : ConnectionStatus
     data class Error(val message: String) : ConnectionStatus
 }
 
 /**
- * Source de vérité unique pour la connexion serveur + la bibliothèque. Singleton. La connexion est
- * persistée via [ServerStore] (URL + jeton, jamais le mot de passe) : au lancement, on restaure et on
- * recharge les albums automatiquement.
+ * Source de vérité MULTI-SERVEUR. Agrège la bibliothèque de tous les serveurs actifs (Jellyfin,
+ * Subsonic/Navidrome…). Chaque album/morceau porte son `serverId` → tracks/lyrics routés vers le bon
+ * provider. Lecture seule côté serveurs ; favoris en local. Persistance via [ServerStore].
  */
 object MusicRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var appContext: Context? = null
     private var initialized = false
 
-    private var client: JellyfinClient? = null
-    private var token: String? = null
-    private var userId: String? = null
+    /** Providers des serveurs ACTIFS, indexés par serverId. */
+    private val providers = mutableMapOf<String, ServerProvider>()
+
+    private val _servers = MutableStateFlow<List<ServerConfig>>(emptyList())
+    val servers: StateFlow<List<ServerConfig>> = _servers.asStateFlow()
 
     private val _status = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Idle)
     val status: StateFlow<ConnectionStatus> = _status.asStateFlow()
@@ -79,74 +84,76 @@ object MusicRepository {
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
 
-    /** À appeler une fois au lancement (MainActivity). Restaure la connexion persistée si présente. */
+    /** À appeler une fois au lancement (MainActivity). Restaure serveurs + favoris. */
     fun init(context: Context) {
         if (initialized) return
         initialized = true
         appContext = context.applicationContext
         scope.launch { _favorites.value = FavoritesStore.load(context.applicationContext) }
         scope.launch {
-            val saved = ServerStore.load(context.applicationContext) ?: return@launch
-            client = JellyfinClient(saved.baseUrl)
-            token = saved.token
-            userId = saved.userId
-            _status.value = ConnectionStatus.Connected(saved.username)
-            try {
-                loadAlbums()
-            } catch (e: Exception) {
-                // Jeton expiré / serveur injoignable : on oublie la session restaurée.
-                disconnect()
-            }
+            _servers.value = ServerStore.load(context.applicationContext)
+            rebuildProviders()
+            loadAlbums()
         }
     }
 
-    /**
-     * Authentifie, persiste la connexion, puis charge les albums. Lancé sur le scope DURABLE du dépôt
-     * (et non celui de l'écran) : la connexion survit à un changement d'écran / une recomposition.
-     */
-    fun connect(url: String, username: String, password: String) {
+    /** (Re)construit la map des providers à partir des serveurs actifs. */
+    private fun rebuildProviders() {
+        val active = _servers.value.filter { it.active }
+        // ferme ceux qui ne sont plus actifs
+        providers.keys.toList().filter { id -> active.none { it.id == id } }
+            .forEach { providers.remove(it)?.close() }
+        // crée les nouveaux
+        active.forEach { cfg -> if (!providers.containsKey(cfg.id)) providers[cfg.id] = providerFor(cfg) }
+    }
+
+    /** Ajoute un serveur (authentifie, persiste, recharge). */
+    fun addServer(type: ServerType, url: String, username: String, password: String) {
         scope.launch {
             _status.value = ConnectionStatus.Connecting
             try {
-                client?.close()
-                val c = JellyfinClient(url)
-                val auth = c.authenticate(username, password)
-                client = c
-                token = auth.accessToken
-                userId = auth.user.id
-                _status.value = ConnectionStatus.Connected(auth.user.name)
-                appContext?.let {
-                    ServerStore.save(it, SavedServer(c.base, auth.user.id, auth.accessToken, auth.user.name))
-                }
+                val config = authenticateServer(UUID.randomUUID().toString(), type, url, username, password)
+                val updated = _servers.value + config
+                _servers.value = updated
+                appContext?.let { ServerStore.save(it, updated) }
+                rebuildProviders()
+                _status.value = ConnectionStatus.Connected(config.name)
                 loadAlbums()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                client = null
-                token = null
-                userId = null
-                _albums.value = emptyList()
                 _status.value = ConnectionStatus.Error(e.message ?: "Échec de la connexion")
             }
         }
     }
 
-    /** Oublie la connexion (efface aussi la session persistée). */
-    fun disconnect() {
-        scope.launch { appContext?.let { ServerStore.clear(it) } }
-        client?.close()
-        client = null
-        token = null
-        userId = null
-        _albums.value = emptyList()
-        _status.value = ConnectionStatus.Idle
+    /** Retire un serveur. */
+    fun removeServer(id: String) {
+        scope.launch {
+            providers.remove(id)?.close()
+            val updated = _servers.value.filterNot { it.id == id }
+            _servers.value = updated
+            appContext?.let { ServerStore.save(it, updated) }
+            loadAlbums()
+        }
+    }
+
+    /** Active/désactive un serveur dans la bibliothèque agrégée. */
+    fun setActive(id: String, active: Boolean) {
+        scope.launch {
+            val updated = _servers.value.map { if (it.id == id) it.copy(active = active) else it }
+            _servers.value = updated
+            appContext?.let { ServerStore.save(it, updated) }
+            rebuildProviders()
+            loadAlbums()
+        }
     }
 
     /** Ajoute/retire un album des favoris (local). */
     fun toggleFavorite(album: Album) {
         val current = _favorites.value
-        val updated = if (current.any { it.id == album.id }) {
-            current.filterNot { it.id == album.id }
+        val updated = if (current.any { it.id == album.id && it.serverId == album.serverId }) {
+            current.filterNot { it.id == album.id && it.serverId == album.serverId }
         } else {
             current + album
         }
@@ -154,74 +161,34 @@ object MusicRepository {
         appContext?.let { ctx -> scope.launch { FavoritesStore.save(ctx, updated) } }
     }
 
-    /** Recharge la liste des albums depuis le serveur connecté. */
+    fun isFavorite(album: Album): Boolean =
+        _favorites.value.any { it.id == album.id && it.serverId == album.serverId }
+
+    /** Recharge les albums récents agrégés de tous les serveurs actifs. */
     suspend fun loadAlbums() {
-        val c = client ?: return
-        val t = token ?: return
-        val u = userId ?: return
-        val items = c.albums(t, u)
-        _albums.value = items.map { item ->
-            Album(
-                id = item.id,
-                title = item.name,
-                artist = item.albumArtist.orEmpty(),
-                coverUrl = c.coverUrl(item.id, t),
-            )
-        }
+        _albums.value = aggregate { it.recentAlbums() }
     }
 
-    /** Paroles d'un morceau (ou null si absentes). */
-    suspend fun lyrics(trackId: String): TrackLyrics? {
-        val c = client ?: return null
-        val t = token ?: return null
-        val dto = c.lyrics(t, trackId) ?: return null
-        val lines = dto.lyrics.map { LyricLine(it.text, it.start?.let { ticks -> ticks / 10_000_000.0 }) }
-        if (lines.isEmpty()) return null
-        return TrackLyrics(synced = lines.any { it.timeSeconds != null }, lines = lines)
-    }
+    /** Recherche agrégée (nom d'album + artiste) sur tous les serveurs actifs. */
+    suspend fun searchAlbums(query: String): List<Album> = aggregate { it.searchAlbums(query) }
 
-    /** Recherche d'albums (par NOM d'album ET par ARTISTE) sur le serveur connecté. */
-    suspend fun searchAlbums(query: String): List<Album> {
-        val c = client ?: return emptyList()
-        val t = token ?: return emptyList()
-        val u = userId ?: return emptyList()
-        val byName = c.searchAlbums(t, u, query)
-        val byArtist = c.searchArtists(t, u, query).flatMap {
-            runCatching { c.albumsByArtist(t, u, it.id) }.getOrDefault(emptyList())
-        }
-        return (byName + byArtist).distinctBy { it.id }.map { item ->
-            Album(item.id, item.name, item.albumArtist.orEmpty(), c.coverUrl(item.id, t))
-        }
-    }
+    /** Albums d'un artiste (par nom), agrégés. */
+    suspend fun albumsByArtistName(name: String): List<Album> = aggregate { it.albumsByArtistName(name) }
 
-    /** Albums d'un artiste (recherché par son nom). */
-    suspend fun albumsByArtistName(name: String): List<Album> {
-        val c = client ?: return emptyList()
-        val t = token ?: return emptyList()
-        val u = userId ?: return emptyList()
-        val artists = c.searchArtists(t, u, name)
-        val artist = artists.firstOrNull { it.name.equals(name, ignoreCase = true) }
-            ?: artists.firstOrNull() ?: return emptyList()
-        return c.albumsByArtist(t, u, artist.id).map { item ->
-            Album(item.id, item.name, item.albumArtist.orEmpty(), c.coverUrl(item.id, t))
-        }
-    }
+    /** Morceaux d'un album — routés vers le provider du serveur d'origine. */
+    suspend fun tracks(album: Album): List<Track> =
+        providers[album.serverId]?.let { runCatching { it.tracks(album.id) }.getOrDefault(emptyList()) } ?: emptyList()
 
-    /** Morceaux d'un album (dans l'ordre des pistes), avec leur URL de flux. */
-    suspend fun tracks(albumId: String): List<Track> {
-        val c = client ?: return emptyList()
-        val t = token ?: return emptyList()
-        val u = userId ?: return emptyList()
-        return c.albumTracks(t, u, albumId).map { tk ->
-            Track(
-                id = tk.id,
-                title = tk.name,
-                artist = tk.artists?.joinToString(", ").orEmpty(),
-                index = tk.index,
-                durationMs = tk.runTimeTicks?.div(10_000),
-                streamUrl = c.streamUrl(tk.id, t),
-                coverUrl = c.coverUrl(tk.id, t),
-            )
+    /** Paroles d'un morceau — routées vers le provider du serveur d'origine. */
+    suspend fun lyrics(track: Track): TrackLyrics? =
+        providers[track.serverId]?.let { runCatching { it.lyrics(track.id) }.getOrNull() }
+
+    /** Exécute `block` sur chaque provider actif et fusionne (dédoublonné par serveur+id). */
+    private suspend fun aggregate(block: suspend (ServerProvider) -> List<Album>): List<Album> {
+        val result = mutableListOf<Album>()
+        for (p in providers.values.toList()) {
+            result += runCatching { block(p) }.getOrDefault(emptyList())
         }
+        return result.distinctBy { it.serverId + "|" + it.id }
     }
 }

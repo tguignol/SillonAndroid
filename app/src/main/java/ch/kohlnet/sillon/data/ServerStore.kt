@@ -5,46 +5,24 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
-
-/** Config serveur persistée (sans mot de passe — on garde le JETON, comme le Keychain iOS). */
-data class SavedServer(
-    val baseUrl: String,
-    val userId: String,
-    val token: String,
-    val username: String,
-)
+import kotlinx.serialization.json.Json
 
 internal val Context.dataStore by preferencesDataStore(name = "sillon")
 
 /**
- * Persistance légère de la connexion (DataStore). On stocke l'URL, l'identifiant utilisateur, le
- * **jeton d'accès** et le nom — JAMAIS le mot de passe. (À durcir plus tard : chiffrement façon Keychain.)
+ * Persistance de la LISTE des serveurs (DataStore, JSON). Multi-serveur. On stocke le jeton Jellyfin
+ * ou le mot de passe Subsonic — JAMAIS sur le réseau public ; à durcir (chiffrement façon Keychain).
  */
 object ServerStore {
-    private val KEY_URL = stringPreferencesKey("baseUrl")
-    private val KEY_USER_ID = stringPreferencesKey("userId")
-    private val KEY_TOKEN = stringPreferencesKey("token")
-    private val KEY_USERNAME = stringPreferencesKey("username")
+    private val KEY_SERVERS = stringPreferencesKey("servers")
+    private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun save(context: Context, server: SavedServer) {
-        context.dataStore.edit { prefs ->
-            prefs[KEY_URL] = server.baseUrl
-            prefs[KEY_USER_ID] = server.userId
-            prefs[KEY_TOKEN] = server.token
-            prefs[KEY_USERNAME] = server.username
-        }
+    suspend fun load(context: Context): List<ServerConfig> {
+        val raw = context.dataStore.data.first()[KEY_SERVERS] ?: return emptyList()
+        return runCatching { json.decodeFromString<List<ServerConfig>>(raw) }.getOrDefault(emptyList())
     }
 
-    suspend fun load(context: Context): SavedServer? {
-        val prefs = context.dataStore.data.first()
-        val url = prefs[KEY_URL] ?: return null
-        val userId = prefs[KEY_USER_ID] ?: return null
-        val token = prefs[KEY_TOKEN] ?: return null
-        val username = prefs[KEY_USERNAME] ?: return null
-        return SavedServer(url, userId, token, username)
-    }
-
-    suspend fun clear(context: Context) {
-        context.dataStore.edit { it.clear() }
+    suspend fun save(context: Context, servers: List<ServerConfig>) {
+        context.dataStore.edit { it[KEY_SERVERS] = json.encodeToString(servers) }
     }
 }
