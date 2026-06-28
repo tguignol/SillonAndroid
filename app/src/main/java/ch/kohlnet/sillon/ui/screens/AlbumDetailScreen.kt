@@ -1,9 +1,7 @@
 package ch.kohlnet.sillon.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -28,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -140,26 +139,13 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
-    // Appui = lecture (remplace la file). Appui LONG = menu « Lire ensuite » / « Ajouter à la file ».
     var menuOpen by remember { mutableStateOf(false) }
-    Box {
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(str(S.LIRE_ENSUITE), style = Sillon.type.corps) },
-                onClick = { PlayerController.playNext(track); menuOpen = false },
-            )
-            DropdownMenuItem(
-                text = { Text(str(S.AJOUTER_FILE), style = Sillon.type.corps) },
-                onClick = { PlayerController.addToQueue(track); menuOpen = false },
-            )
-        }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+            .clickable(onClick = onClick)
             .padding(vertical = Sillon.spacing.s),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
@@ -178,6 +164,22 @@ private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        // Bouton ⋮ (juste AVANT l'encodage) : ouvre le menu d'actions du titre (extensible).
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "Plus d'actions", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(20.dp))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(str(S.LIRE_ENSUITE), style = Sillon.type.corps) },
+                    onClick = { PlayerController.playNext(track); menuOpen = false },
+                )
+                DropdownMenuItem(
+                    text = { Text(str(S.AJOUTER_FILE), style = Sillon.type.corps) },
+                    onClick = { PlayerController.addToQueue(track); menuOpen = false },
+                )
+            }
+        }
         // Type d'encodage (FLAC / ALAC / WAV…) en vert, comme ailleurs.
         track.formatLabel()?.takeIf { it.isNotBlank() }?.let {
             Text(
@@ -193,7 +195,6 @@ private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
                 style = Sillon.type.technique,
                 color = Sillon.colors.texteSourdine,
             )
-        }
         }
     }
 }

@@ -157,22 +157,32 @@ private fun SillonRail(current: SillonDestination, onSelect: (SillonDestination)
         modifier = Modifier.statusBarsPadding(),
     ) {
         Spacer(Modifier.height(Sillon.spacing.xl))
-        SillonDestination.entries.forEach { dest ->
-            NavigationRailItem(
-                selected = dest == current,
-                onClick = { onSelect(dest) },
-                icon = { Icon(dest.icon, contentDescription = str(dest.titleKey)) },
-                label = { Text(str(dest.titleKey), style = Sillon.type.corps.copy(fontSize = 12.sp), maxLines = 1) },
-                colors = NavigationRailItemDefaults.colors(
-                    selectedIconColor = Sillon.colors.fondNoir,
-                    selectedTextColor = Sillon.colors.accentCuivre,
-                    indicatorColor = Sillon.colors.accentCuivre,
-                    unselectedIconColor = Sillon.colors.texteSourdine,
-                    unselectedTextColor = Sillon.colors.texteSourdine,
-                ),
-            )
+        // Destinations principales en haut ; Réglages poussé TOUT EN BAS (les paramètres sont
+        // habituellement en bas).
+        SillonDestination.entries.filter { it != SillonDestination.REGLAGES }.forEach { dest ->
+            RailItem(dest, current, onSelect)
         }
+        Spacer(Modifier.weight(1f))
+        RailItem(SillonDestination.REGLAGES, current, onSelect)
+        Spacer(Modifier.height(Sillon.spacing.l))
     }
+}
+
+@Composable
+private fun RailItem(dest: SillonDestination, current: SillonDestination, onSelect: (SillonDestination) -> Unit) {
+    NavigationRailItem(
+        selected = dest == current,
+        onClick = { onSelect(dest) },
+        icon = { Icon(dest.icon, contentDescription = str(dest.titleKey)) },
+        label = { Text(str(dest.titleKey), style = Sillon.type.corps.copy(fontSize = 12.sp), maxLines = 1) },
+        colors = NavigationRailItemDefaults.colors(
+            selectedIconColor = Sillon.colors.fondNoir,
+            selectedTextColor = Sillon.colors.accentCuivre,
+            indicatorColor = Sillon.colors.accentCuivre,
+            unselectedIconColor = Sillon.colors.texteSourdine,
+            unselectedTextColor = Sillon.colors.texteSourdine,
+        ),
+    )
 }
 
 /** Barre d'onglets du bas (écran étroit). Sélection en cuivre. */
