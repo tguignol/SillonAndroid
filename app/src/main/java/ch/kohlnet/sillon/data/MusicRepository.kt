@@ -179,6 +179,14 @@ object MusicRepository {
         scope.launch {
             _servers.value = ServerStore.load(context.applicationContext)
             rebuildProviders()
+            // 1) Affichage INSTANTANÉ depuis le cache local (aucun réseau) : la dernière biblio connue.
+            val cached = LibraryCache.load(context.applicationContext)
+            if (cached.isNotEmpty()) {
+                serverAlbums.putAll(cached)
+                serverAlbums.keys.retainAll(_servers.value.map { it.id }.toSet())
+                recomputeAlbums()
+            }
+            // 2) Rafraîchissement réseau EN FOND → met à jour la biblio + réécrit le cache disque.
             loadAlbums()
         }
     }
@@ -283,6 +291,7 @@ object MusicRepository {
             _servers.value = updated
             appContext?.let { ServerStore.save(it, updated) }
             recomputeAlbums()
+            persistLibraryCache()
         }
     }
 
@@ -310,7 +319,8 @@ object MusicRepository {
             rebuildProviders()
             // Réactivé sans cache → récupérer juste ce serveur ; désactivation/cache présent → instantané.
             if (active && serverAlbums[id] == null) {
-                providers[id]?.let { p -> serverAlbums[id] = runCatching { p.allAlbums() }.getOrDefault(emptyList()) }
+                providers[id]?.let { p -> runCatching { p.allAlbums() }.getOrNull()?.let { serverAlbums[id] = it } }
+                persistLibraryCache()
             }
             recomputeAlbums()
         }
@@ -349,18 +359,31 @@ object MusicRepository {
 
     /** Recharge TOUTE la bibliothèque des serveurs actifs (paginée) et met à jour le cache par serveur. */
     suspend fun loadAlbums() {
-        _loading.value = true
+        // Loader BLOQUANT seulement si rien n'est encore affiché (1er lancement, cache vide). Si le cache
+        // local a déjà peuplé la biblio, le rafraîchissement réseau est SILENCIEUX (pas de spinner).
+        val showLoader = _albums.value.isEmpty()
+        if (showLoader) _loading.value = true
         try {
             val ordered = _servers.value.filter { it.active }.mapNotNull { cfg -> providers[cfg.id]?.let { cfg.id to it } }
             val fetched = coroutineScope {
-                ordered.map { (id, p) -> async { id to runCatching { p.allAlbums() }.getOrDefault(emptyList()) } }.awaitAll()
+                ordered.map { (id, p) -> async { id to runCatching { p.allAlbums() }.getOrNull() } }.awaitAll()
             }
-            fetched.forEach { (id, list) -> serverAlbums[id] = list }
+            // On ne remplace le cache d'un serveur QUE si la requête a RÉUSSI (null = échec réseau) →
+            // un serveur momentanément injoignable conserve sa dernière biblio connue (pas d'écrasement).
+            fetched.forEach { (id, list) -> if (list != null) serverAlbums[id] = list }
             serverAlbums.keys.retainAll(_servers.value.map { it.id }.toSet())
             recomputeAlbums()
+            persistLibraryCache()
         } finally {
-            _loading.value = false
+            if (showLoader) _loading.value = false
         }
+    }
+
+    /** Réécrit le cache local des métadonnées (albums par serveur) sur disque, en tâche de fond. */
+    private fun persistLibraryCache() {
+        val ctx = appContext ?: return
+        val snapshot = serverAlbums.toMap()
+        scope.launch { LibraryCache.save(ctx, snapshot) }
     }
 
     /**
@@ -396,10 +419,12 @@ object MusicRepository {
                         providers.remove(id)?.close()
                         val p = providerFor(cfg, ctx)
                         providers[id] = p
-                        serverAlbums[id] = runCatching { p.allAlbums() }.getOrDefault(emptyList())
+                        // Succès seulement → on garde la biblio connue si la reconnexion échoue.
+                        runCatching { p.allAlbums() }.getOrNull()?.let { serverAlbums[id] = it }
                     }
                 }
                 recomputeAlbums()
+                persistLibraryCache()
             } finally {
                 _refreshingServerId.value = null
             }
