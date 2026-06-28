@@ -7,10 +7,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -23,8 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.EqualizerState
@@ -34,13 +41,15 @@ import ch.kohlnet.sillon.ui.theme.Sillon
 import kotlin.math.roundToInt
 
 /**
- * Égaliseur graphique (façon iOS, mode « Normal ») : 8 curseurs verticaux (gain par bande) + on/off
- * + réinitialiser. Agit sur [EqualizerState] (appliqué en temps réel par l'EqAudioProcessor).
+ * Égaliseur graphique (façon iOS, mode « Normal ») : curseurs verticaux par bande + on/off +
+ * réinitialiser + nombre de bandes RÉGLABLE (6–12). Agit sur [EqualizerState] (appliqué en temps réel).
  */
 @Composable
 fun EqualizerPanel() {
     val enabled by EqualizerState.enabled.collectAsState()
     val gains by EqualizerState.gains.collectAsState()
+    val bandCount by EqualizerState.bandCount.collectAsState()
+    val freqs by EqualizerState.frequencies.collectAsState()
 
     Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.m)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -62,36 +71,56 @@ fun EqualizerPanel() {
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs, Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            for (i in 0 until EqualizerState.BAND_COUNT) {
-                BandColumn(band = i, gain = gains.getOrElse(i) { 0f }, enabled = enabled)
+            for (i in 0 until bandCount) {
+                BandColumn(band = i, gain = gains.getOrElse(i) { 0f }, enabled = enabled, freq = freqs.getOrElse(i) { 0f })
             }
+        }
+
+        // Nombre de bandes (6–12).
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(str(S.BANDES), style = Sillon.type.corps, color = Sillon.colors.texteSourdine, modifier = Modifier.weight(1f))
+            IconButton(
+                onClick = { EqualizerState.setBandCount(bandCount - 1) },
+                enabled = bandCount > EqualizerState.MIN_BANDS,
+            ) { Icon(Icons.Filled.Remove, "−", tint = Sillon.colors.texteIvoire) }
+            Text("$bandCount", style = Sillon.type.corps, color = Sillon.colors.texteIvoire)
+            IconButton(
+                onClick = { EqualizerState.setBandCount(bandCount + 1) },
+                enabled = bandCount < EqualizerState.MAX_BANDS,
+            ) { Icon(Icons.Filled.Add, "+", tint = Sillon.colors.texteIvoire) }
         }
     }
 }
 
 @Composable
-private fun BandColumn(band: Int, gain: Float, enabled: Boolean) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs)) {
+private fun RowScope.BandColumn(band: Int, gain: Float, enabled: Boolean, freq: Float) {
+    Column(
+        modifier = Modifier.weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+    ) {
         val g = gain.roundToInt()
         Text(
             text = if (g > 0) "+$g" else "$g",
             style = Sillon.type.technique,
             color = if (enabled) Sillon.colors.signalTeal else Sillon.colors.texteSourdine,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
         )
         VerticalEqSlider(
             value = gain,
             onValueChange = { EqualizerState.setGain(band, it) },
             enabled = enabled,
-            modifier = Modifier.height(170.dp).width(30.dp),
+            modifier = Modifier.height(170.dp).fillMaxWidth(),
         )
         Text(
-            text = EqualizerState.frequencyLabel(EqualizerState.frequencies[band]),
+            text = EqualizerState.frequencyLabel(freq),
             style = Sillon.type.technique,
             color = Sillon.colors.texteSourdine,
-            fontSize = 9.sp,
+            fontSize = 8.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
         )
     }
 }
@@ -131,13 +160,10 @@ private fun VerticalEqSlider(
             val cx = size.width / 2f
             val w = 4.dp.toPx()
             fun yFor(v: Float) = size.height * (1f - (v - min) / (max - min))
-            // Rail
             drawLine(track, Offset(cx, 0f), Offset(cx, size.height), strokeWidth = w, cap = StrokeCap.Round)
-            // Remplissage du centre (0 dB) jusqu'au curseur
             drawLine(accent, Offset(cx, yFor(0f)), Offset(cx, yFor(value)), strokeWidth = w, cap = StrokeCap.Round)
-            // Poignée
             drawCircle(Color.White, radius = 8.dp.toPx(), center = Offset(cx, yFor(value)))
-            drawCircle(accent, radius = 8.dp.toPx(), center = Offset(cx, yFor(value)), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+            drawCircle(accent, radius = 8.dp.toPx(), center = Offset(cx, yFor(value)), style = Stroke(width = 2.dp.toPx()))
         }
     }
 }

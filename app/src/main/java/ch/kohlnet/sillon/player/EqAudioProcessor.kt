@@ -37,12 +37,11 @@ class EqAudioProcessor : BaseAudioProcessor() {
 
     private fun recompute() {
         val gains = EqualizerState.gains.value
-        val freqs = EqualizerState.frequencies
+        val freqs = EqualizerState.frequencies.value
+        val n = minOf(gains.size, freqs.size)
         bypass = !EqualizerState.enabled.value
         biquads = Array(channels) { _ ->
-            Array(EqualizerState.BAND_COUNT) { b ->
-                Biquad.peaking(freqs[b].toDouble(), gains[b].toDouble(), 1.0, sampleRate)
-            }
+            Array(n) { b -> Biquad.peaking(freqs[b].toDouble(), gains[b].toDouble(), 1.0, sampleRate) }
         }
         lastGen = EqualizerState.generation
     }

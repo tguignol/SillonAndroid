@@ -44,6 +44,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -83,6 +84,7 @@ fun FullPlayerScreen(onClose: () -> Unit) {
     val position by PlayerController.positionMs.collectAsState()
     val duration by PlayerController.durationMs.collectAsState()
     var pane by remember { mutableStateOf(PlayerPane.COVER) }
+    LaunchedEffect(Unit) { PlayerController.refreshVolume() } // refléter le volume système courant
     val t = track ?: return
 
     BoxWithConstraints(
@@ -267,7 +269,9 @@ private fun ColumnScope.Controls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
     ) {
-        Icon(Icons.Filled.VolumeDown, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+        IconButton(onClick = { PlayerController.adjustVolume(-0.05f) }, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Filled.VolumeDown, "Moins fort", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+        }
         Slider(
             value = volume,
             onValueChange = { PlayerController.setVolume(it) },
@@ -279,7 +283,9 @@ private fun ColumnScope.Controls(
                 inactiveTrackColor = Sillon.colors.texteSourdine,
             ),
         )
-        Icon(Icons.Filled.VolumeUp, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+        IconButton(onClick = { PlayerController.adjustVolume(0.05f) }, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Filled.VolumeUp, "Plus fort", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+        }
     }
 
     // Espace pour descendre les boutons plus bas.

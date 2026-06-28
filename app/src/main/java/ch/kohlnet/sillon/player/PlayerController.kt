@@ -2,8 +2,10 @@ package ch.kohlnet.sillon.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.AudioManager
 import android.net.Uri
 import androidx.core.content.ContextCompat
+import kotlin.math.roundToInt
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -47,9 +49,10 @@ object PlayerController {
     private val _shuffle = MutableStateFlow(false)
     val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
 
-    /** Volume applicatif du lecteur (0..1), façon iOS (n'agit pas sur le volume système). */
+    /** Volume MÉDIA du système (0..1) — à fond = vraiment fort. Réglé par la barre du lecteur. */
     private val _volume = MutableStateFlow(1f)
     val volume: StateFlow<Float> = _volume.asStateFlow()
+    private var audioManager: AudioManager? = null
 
     /** `Player.REPEAT_MODE_OFF` / `_ALL` / `_ONE`. */
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
@@ -71,24 +74,22 @@ object PlayerController {
         override fun onRepeatModeChanged(repeatMode: Int) {
             _repeatMode.value = repeatMode
         }
-
-        override fun onVolumeChanged(volume: Float) {
-            _volume.value = volume
-        }
     }
 
     /** À appeler une fois au lancement (MainActivity) : connecte le MediaController au service. */
     fun init(context: Context) {
         if (controller != null) return
         val ctx = context.applicationContext
+        audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        refreshVolume()
         val token = SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))
         val future = MediaController.Builder(ctx, token).buildAsync()
         future.addListener({
             val c = future.get()
             controller = c
             c.addListener(listener)
+            c.volume = 1f   // volume applicatif à fond : c'est le volume SYSTÈME qu'on règle
             _isPlaying.value = c.isPlaying
-            _volume.value = c.volume
             _current.value = _queue.value.getOrNull(c.currentMediaItemIndex)
         }, ContextCompat.getMainExecutor(ctx))
 
@@ -153,11 +154,23 @@ object PlayerController {
         controller?.let { it.seekTo((it.currentPosition - ms).coerceAtLeast(0)) }
     }
 
-    /** Règle le volume applicatif (0..1). */
-    fun setVolume(v: Float) {
-        val vol = v.coerceIn(0f, 1f)
-        controller?.volume = vol
-        _volume.value = vol
+    /** Règle le volume MÉDIA système à une fraction 0..1. */
+    fun setVolume(fraction: Float) {
+        val am = audioManager ?: return
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val target = (fraction.coerceIn(0f, 1f) * max).roundToInt().coerceIn(0, max)
+        runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+        _volume.value = if (max > 0) target / max.toFloat() else 0f
+    }
+
+    /** Ajuste le volume média par palier (ex. icônes ± du lecteur : ±0.05 = 5 %). */
+    fun adjustVolume(delta: Float) = setVolume(_volume.value + delta)
+
+    /** Relit le volume média courant du système (les touches matérielles peuvent l'avoir changé). */
+    fun refreshVolume() {
+        val am = audioManager ?: return
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (max > 0) _volume.value = am.getStreamVolume(AudioManager.STREAM_MUSIC) / max.toFloat()
     }
 
     /** Saute au morceau d'index `index` dans la file. */
