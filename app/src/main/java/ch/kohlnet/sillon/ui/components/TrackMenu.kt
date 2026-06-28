@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -97,8 +98,7 @@ fun TrackMenuButton(track: Track, modifier: Modifier = Modifier) {
 fun AddToPlaylistSheet(tracks: List<Track>, onDismiss: () -> Unit) {
     val playlists by Playlists.playlists.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var creating by remember { mutableStateOf(false) }
-    var newName by remember { mutableStateOf("") }
+    var showCreate by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Sillon.colors.surfaceElevee) {
         Column(
@@ -111,36 +111,17 @@ fun AddToPlaylistSheet(tracks: List<Track>, onDismiss: () -> Unit) {
                 color = Sillon.colors.texteIvoire,
             )
 
-            // Créer une nouvelle playlist (et y ajouter directement les titres).
-            if (creating) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s)) {
-                    OutlinedTextField(
-                        value = newName,
-                        onValueChange = { newName = it },
-                        label = { Text(str(S.NOM)) },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        onClick = {
-                            val pl = Playlists.create(newName)
-                            Playlists.addTracks(pl.id, tracks)
-                            onDismiss()
-                        },
-                        enabled = newName.isNotBlank(),
-                    ) { Text(str(S.CREER)) }
-                }
-            } else {
-                Row(
-                    Modifier.fillMaxWidth().clickable { creating = true }.padding(vertical = Sillon.spacing.s),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = Sillon.colors.accentCuivre)
-                    Text(str(S.NOUVELLE_PLAYLIST), style = Sillon.type.corps, color = Sillon.colors.texteIvoire)
-                }
+            // Choix 1 : CRÉER une nouvelle playlist → masque de saisie du titre (dialogue).
+            Row(
+                Modifier.fillMaxWidth().clickable { showCreate = true }.padding(vertical = Sillon.spacing.s),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, tint = Sillon.colors.accentCuivre)
+                Text(str(S.NOUVELLE_PLAYLIST), style = Sillon.type.corps, color = Sillon.colors.texteIvoire)
             }
 
+            // Choix 2 : ajouter à une playlist EXISTANTE.
             Text(str(S.MES_PLAYLISTS), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
             if (playlists.isEmpty()) {
                 Text(str(S.AUCUNE_PLAYLIST), style = Sillon.type.corps, color = Sillon.colors.texteSourdine, modifier = Modifier.padding(vertical = Sillon.spacing.s))
@@ -162,4 +143,40 @@ fun AddToPlaylistSheet(tracks: List<Track>, onDismiss: () -> Unit) {
             Spacer(Modifier.size(Sillon.spacing.l))
         }
     }
+
+    // Masque de saisie du titre pour la nouvelle playlist : crée, y ajoute les titres, ferme tout.
+    if (showCreate) {
+        NameInputDialog(
+            title = str(S.NOUVELLE_PLAYLIST),
+            confirmLabel = str(S.CREER),
+            onConfirm = { name ->
+                val pl = Playlists.create(name)
+                Playlists.addTracks(pl.id, tracks)
+                showCreate = false
+                onDismiss()
+            },
+            onDismiss = { showCreate = false },
+        )
+    }
+}
+
+/** Masque de saisie d'un titre de playlist (dialogue). */
+@Composable
+private fun NameInputDialog(title: String, confirmLabel: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(str(S.NOM)) },
+                singleLine = true,
+            )
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) { Text(confirmLabel) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(str(S.ANNULER)) } },
+        containerColor = Sillon.colors.surfaceElevee,
+    )
 }
