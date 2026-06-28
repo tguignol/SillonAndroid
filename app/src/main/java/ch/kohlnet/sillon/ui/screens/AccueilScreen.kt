@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -66,6 +67,7 @@ fun AccueilScreen() {
     val albums by MusicRepository.albums.collectAsState()
     val favorites by MusicRepository.favorites.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
+    val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
 
     val sel = selected
     if (sel != null) {
@@ -82,7 +84,7 @@ fun AccueilScreen() {
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(top = Sillon.spacing.l, bottom = Sillon.spacing.xxl),
         verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xl),
     ) {
@@ -189,6 +191,7 @@ private fun AlbumCarousel(albums: List<Album>, onClick: (Album) -> Unit, onReshu
 @Composable
 private fun AlbumGridScreen(title: String, albums: List<Album>, emptyText: String) {
     var selected by remember { mutableStateOf<Album?>(null) }
+    val gridState = rememberLazyGridState() // hissé → la position survit à l'ouverture d'un album
     val sel = selected
     if (sel != null) {
         AlbumDetailScreen(sel, onBack = { selected = null })
@@ -208,6 +211,7 @@ private fun AlbumGridScreen(title: String, albums: List<Album>, emptyText: Strin
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(CARD),
+                state = gridState,
                 modifier = Modifier.padding(top = Sillon.spacing.m),
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
                 verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),

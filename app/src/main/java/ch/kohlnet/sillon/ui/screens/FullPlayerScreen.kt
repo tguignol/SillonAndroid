@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -214,30 +216,6 @@ private fun ColumnScope.Controls(
 
     Spacer(Modifier.height(Sillon.spacing.m))
 
-    // Volume (applicatif, façon iOS).
-    val volume by PlayerController.volume.collectAsState()
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
-    ) {
-        Icon(Icons.Filled.VolumeDown, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
-        Slider(
-            value = volume,
-            onValueChange = { PlayerController.setVolume(it) },
-            valueRange = 0f..1f,
-            modifier = Modifier.weight(1f),
-            colors = SliderDefaults.colors(
-                thumbColor = Sillon.colors.accentCuivre,
-                activeTrackColor = Sillon.colors.accentCuivre,
-                inactiveTrackColor = Sillon.colors.texteSourdine,
-            ),
-        )
-        Icon(Icons.Filled.VolumeUp, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
-    }
-
-    Spacer(Modifier.height(Sillon.spacing.m))
-
     val shuffle by PlayerController.shuffle.collectAsState()
     val repeatMode by PlayerController.repeatMode.collectAsState()
 
@@ -280,13 +258,47 @@ private fun ColumnScope.Controls(
         }
     }
 
-    // Espace pour descendre les boutons paroles / file plus bas.
-    Spacer(Modifier.height(Sillon.spacing.xxl))
+    Spacer(Modifier.height(Sillon.spacing.m))
 
+    // Volume SOUS le transport (applicatif, façon iOS).
+    val volume by PlayerController.volume.collectAsState()
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xxl, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
     ) {
+        Icon(Icons.Filled.VolumeDown, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+        Slider(
+            value = volume,
+            onValueChange = { PlayerController.setVolume(it) },
+            valueRange = 0f..1f,
+            modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(
+                thumbColor = Sillon.colors.accentCuivre,
+                activeTrackColor = Sillon.colors.accentCuivre,
+                inactiveTrackColor = Sillon.colors.texteSourdine,
+            ),
+        )
+        Icon(Icons.Filled.VolumeUp, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+    }
+
+    // Espace pour descendre les boutons plus bas.
+    Spacer(Modifier.height(Sillon.spacing.xxl))
+
+    // Favori (piste courante) + Paroles + File.
+    val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()
+    val isFav = t.matchKey() in favTracks
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xl, Alignment.CenterHorizontally),
+    ) {
+        IconButton(onClick = { MusicRepository.toggleTrackFavorite(t) }) {
+            Icon(
+                if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = "Favori",
+                tint = tintIf(isFav),
+            )
+        }
         IconButton(onClick = { onSetPane(if (pane == PlayerPane.LYRICS) PlayerPane.COVER else PlayerPane.LYRICS) }) {
             Icon(Icons.Filled.Lyrics, "Paroles", tint = tintIf(pane == PlayerPane.LYRICS))
         }

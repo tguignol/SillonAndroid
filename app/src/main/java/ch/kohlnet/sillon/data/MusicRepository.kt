@@ -1,6 +1,8 @@
 package ch.kohlnet.sillon.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -8,6 +10,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.util.UUID
@@ -44,6 +47,9 @@ data class Track(
     val bitDepthBits: Int? = null,
     val bitrateKbps: Int? = null,
 ) {
+    /** Clé de correspondance (favoris pistes propagés entre serveurs) : titre+artiste normalisés. */
+    fun matchKey(): String = (title + " " + artist).trim().lowercase().replace(Regex("\\s+"), " ")
+
     /** Libellé qualité condensé façon iOS : « FLAC · 44,1 kHz » (codec en majuscule + fréquence). */
     fun qualityLabel(): String? {
         val codec = format?.takeIf { it.isNotBlank() }?.uppercase()
@@ -111,6 +117,11 @@ object MusicRepository {
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
 
+    /** Pistes favorites (clés titre+artiste normalisées, propagées entre serveurs). */
+    private val KEY_FAV_TRACKS = stringPreferencesKey("favoriteTrackKeys")
+    private val _favoriteTrackKeys = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteTrackKeys: StateFlow<Set<String>> = _favoriteTrackKeys.asStateFlow()
+
     /** Vrai pendant un rechargement GLOBAL de la bibliothèque (bouton « Rafraîchir »). */
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
@@ -125,6 +136,10 @@ object MusicRepository {
         initialized = true
         appContext = context.applicationContext
         scope.launch { _favorites.value = FavoritesStore.load(context.applicationContext) }
+        scope.launch {
+            val raw = context.applicationContext.dataStore.data.first()[KEY_FAV_TRACKS]
+            _favoriteTrackKeys.value = raw?.split("\n")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+        }
         scope.launch {
             _servers.value = ServerStore.load(context.applicationContext)
             rebuildProviders()
@@ -215,6 +230,17 @@ object MusicRepository {
 
     fun isFavorite(album: Album): Boolean =
         _favorites.value.any { it.matchKey() == album.matchKey() }
+
+    /** Ajoute/retire la piste courante des favoris (local, propagé par titre+artiste). */
+    fun toggleTrackFavorite(track: Track) {
+        val key = track.matchKey()
+        val cur = _favoriteTrackKeys.value
+        val updated = if (key in cur) cur - key else cur + key
+        _favoriteTrackKeys.value = updated
+        appContext?.let { ctx -> scope.launch { ctx.dataStore.edit { it[KEY_FAV_TRACKS] = updated.joinToString("\n") } } }
+    }
+
+    fun isTrackFavorite(track: Track): Boolean = track.matchKey() in _favoriteTrackKeys.value
 
     /** Recharge TOUTE la bibliothèque agrégée de tous les serveurs actifs (paginée). */
     suspend fun loadAlbums() {

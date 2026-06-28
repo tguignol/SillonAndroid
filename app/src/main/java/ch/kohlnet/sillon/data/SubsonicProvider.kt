@@ -92,8 +92,23 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
     private fun coverUrl(coverArtId: String): String =
         "$base/rest/getCoverArt?id=${URLEncoder.encode(coverArtId, "UTF-8")}&${authQuery()}&size=400"
 
-    private fun streamUrl(songId: String): String =
-        "$base/rest/stream?id=${URLEncoder.encode(songId, "UTF-8")}&${authQuery()}"
+    /**
+     * URL de flux. ExoPlayer/Android ne décode pas l'ALAC de façon fiable → pour ces fichiers (et
+     * autres conteneurs sans décodeur natif), on demande au serveur un TRANSCODAGE pour qu'ils soient
+     * AUDIBLES (sinon : lecture muette). Le reste (FLAC/MP3/AAC/Opus/Ogg/WAV) passe en natif (lossless).
+     */
+    private fun streamUrl(songId: String, transcode: Boolean = false): String {
+        val q = if (transcode) "&format=mp3&maxBitRate=320" else ""
+        return "$base/rest/stream?id=${URLEncoder.encode(songId, "UTF-8")}&${authQuery()}$q"
+    }
+
+    /** Conteneur probablement non décodable nativement par ExoPlayer (ALAC/M4A lossless, WMA, APE…). */
+    private fun needsTranscode(suffix: String?, bitDepth: Int?): Boolean {
+        val s = suffix?.lowercase()
+        return s == "alac" ||
+            s in setOf("wma", "ape", "aiff", "aif", "wv", "tak", "tta") ||
+            (s in setOf("m4a", "m4b", "mp4") && bitDepth != null) // m4a avec profondeur de bits = ALAC lossless
+    }
 
     override suspend fun allAlbums(): List<Album> {
         val pageSize = 500
@@ -131,7 +146,7 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
                 artist = s.artist,
                 index = s.track,
                 durationMs = s.duration?.let { it * 1000L },
-                streamUrl = streamUrl(s.id),
+                streamUrl = streamUrl(s.id, needsTranscode(s.suffix, s.bitDepth)),
                 coverUrl = coverUrl(s.coverArt ?: s.id),
                 serverId = config.id,
                 format = s.suffix,

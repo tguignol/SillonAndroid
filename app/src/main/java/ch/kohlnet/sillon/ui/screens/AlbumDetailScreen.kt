@@ -110,7 +110,10 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
 
         Spacer(Modifier.height(Sillon.spacing.l))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+        ) {
             items(tracks, key = { it.id }) { track ->
                 TrackRow(
                     track = track,
