@@ -29,7 +29,10 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -149,6 +152,7 @@ fun BibliothequeScreen() {
     val loading by MusicRepository.loading.collectAsState()
     val servers by MusicRepository.servers.collectAsState()
     var mode by rememberSaveable { mutableStateOf(LibraryMode.ALBUMS) }
+    var ascending by rememberSaveable { mutableStateOf(true) } // tri A→Z (vrai) / Z→A
     var selectedAlbum by remember { mutableStateOf<Album?>(null) }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     val gridState = rememberLazyGridState()   // hissés → survivent à l'ouverture d'un détail
@@ -162,9 +166,12 @@ fun BibliothequeScreen() {
         ArtistDetailScreen(it, onBack = { selectedArtist = null }); return
     }
 
-    val sortedAlbums = remember(albums) { albums.sortedBy { azSortKey(it.title) } }
-    val artists = remember(albums, servers) {
-        albums.filter { it.artist.isNotBlank() }
+    val sortedAlbums = remember(albums, ascending) {
+        val s = albums.sortedBy { azSortKey(it.title) }
+        if (ascending) s else s.reversed()
+    }
+    val artists = remember(albums, servers, ascending) {
+        val base = albums.filter { it.artist.isNotBlank() }
             .groupBy { it.artist.trim().lowercase() }
             .map { (_, list) ->
                 val name = list.first().artist.trim()
@@ -173,6 +180,7 @@ fun BibliothequeScreen() {
                 ArtistEntry(name, types, list.first())
             }
             .sortedBy { azSortKey(it.name) }
+        if (ascending) base else base.reversed()
     }
 
     Column(
@@ -182,7 +190,11 @@ fun BibliothequeScreen() {
             .padding(horizontal = Sillon.spacing.xl)
             .padding(top = Sillon.spacing.l),
     ) {
-        Text(text = str(S.BIBLIOTHEQUE), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = str(S.BIBLIOTHEQUE), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
+            Spacer(Modifier.weight(1f))
+            SortToggle(ascending) { ascending = !ascending }
+        }
         Spacer(Modifier.height(Sillon.spacing.m))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             SegmentedButton(
@@ -204,6 +216,32 @@ fun BibliothequeScreen() {
             LibraryMode.ALBUMS -> IndexedAlbumGrid(sortedAlbums, gridState, scope) { selectedAlbum = it }
             LibraryMode.ARTISTS -> IndexedArtistList(artists, listState, scope) { selectedArtist = it }
         }
+    }
+}
+
+/** Bascule de tri alphabétique : A→Z (ascendant) / Z→A (descendant). */
+@Composable
+private fun SortToggle(ascending: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Sillon.colors.surfaceElevee)
+            .clickable(onClick = onToggle)
+            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.Sort,
+            contentDescription = null,
+            tint = Sillon.colors.texteIvoire,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            if (ascending) "A→Z" else "Z→A",
+            style = Sillon.type.technique,
+            color = Sillon.colors.texteIvoire,
+        )
     }
 }
 

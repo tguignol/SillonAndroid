@@ -106,7 +106,7 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xxl),
             ) {
                 // Gauche : pochette ronde / paroles (la file d'attente est à droite).
-                MediaArea(t, if (pane == PlayerPane.QUEUE) PlayerPane.COVER else pane, playing, Modifier.weight(1f).fillMaxHeight())
+                MediaArea(t, if (pane == PlayerPane.QUEUE) PlayerPane.COVER else pane, playing, wide = true, Modifier.weight(1f).fillMaxHeight())
                 // Droite : contrôles EN HAUT + file d'attente DESSOUS (titres suivants/précédents).
                 Column(modifier = Modifier.weight(1f)) {
                     Controls(t, playing, position, duration, pane, showQueue = false) { pane = it }
@@ -119,7 +119,7 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 modifier = Modifier.fillMaxSize().padding(Sillon.spacing.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                MediaArea(t, pane, playing, Modifier.fillMaxWidth().weight(1f))
+                MediaArea(t, pane, playing, wide = false, Modifier.fillMaxWidth().weight(1f))
                 Spacer(Modifier.height(Sillon.spacing.l))
                 Controls(t, playing, position, duration, pane) { pane = it }
             }
@@ -132,10 +132,24 @@ fun FullPlayerScreen(onClose: () -> Unit) {
 }
 
 @Composable
-private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, modifier: Modifier) {
+private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, wide: Boolean, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
         when (pane) {
-            PlayerPane.LYRICS -> LyricsPanel(t, Modifier.fillMaxSize())
+            PlayerPane.LYRICS ->
+                if (wide) {
+                    // Écran intérieur : vignette (plus petite) EN HAUT + paroles dessous, ligne en cours centrée,
+                    // bouton « Traduire » gardé en haut des paroles.
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CoverThumb(t, Modifier.fillMaxWidth(0.42f).padding(top = Sillon.spacing.m))
+                        Spacer(Modifier.height(Sillon.spacing.m))
+                        LyricsPanel(t, Modifier.fillMaxWidth().weight(1f))
+                    }
+                } else {
+                    LyricsPanel(t, Modifier.fillMaxSize())
+                }
             PlayerPane.QUEUE -> QueuePanel(Modifier.fillMaxSize())
             PlayerPane.EQUALIZER -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
                 EqualizerPanel()
@@ -171,6 +185,20 @@ private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, modifier: Mo
             }
         }
     }
+}
+
+/** Petite pochette carrée arrondie (vue paroles sur écran large) : façon Apple Music. */
+@Composable
+private fun CoverThumb(t: Track, modifier: Modifier = Modifier) {
+    AsyncImage(
+        model = t.coverUrl,
+        contentDescription = t.title,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+            .background(placeholderBrush(t.title.ifBlank { t.id })),
+    )
 }
 
 @Composable

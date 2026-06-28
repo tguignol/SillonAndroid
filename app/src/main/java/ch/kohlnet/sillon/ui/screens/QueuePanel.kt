@@ -18,57 +18,92 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
 import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 
+/** Mode du panneau latéral : titres de l'ALBUM (défaut) ou la FILE D'ATTENTE complète. */
+private enum class QueueMode { ALBUM, QUEUE }
+
 /**
- * Liste des titres de l'ALBUM en cours de lecture (pas une file d'attente) : en-tête = nom de l'album,
- * chaque morceau avec pochette/titre/artiste/durée. Le titre EN COURS est en cuivre (où on en est dans
- * l'album) ; tap = saut. Barre de défilement fine (sans index alphabétique). Défile auto vers le courant.
+ * Panneau latéral du lecteur. Bascule en haut :
+ *  - « Album » (DÉFAUT) : les titres de l'album du morceau courant, en ordre de piste.
+ *  - « File d'attente » : la file de lecture complète (ordre de lecture).
+ * Le morceau EN COURS est en cuivre ; tap = saut. Barre de défilement fine (sans index alphabétique).
+ * Défile automatiquement vers le morceau courant.
  */
 @Composable
 fun QueuePanel(modifier: Modifier = Modifier) {
     val queue by PlayerController.queue.collectAsState()
     val current by PlayerController.current.collectAsState()
+    var qmode by rememberSaveable { mutableStateOf(QueueMode.ALBUM) }
     val listState = rememberLazyListState()
 
-    val currentIndex = queue.indexOfFirst { it.id == current?.id && it.serverId == current?.serverId }
-    LaunchedEffect(currentIndex) {
+    val items = remember(queue, current, qmode) {
+        when (qmode) {
+            QueueMode.ALBUM -> {
+                val alb = current?.album
+                val list = if (alb.isNullOrBlank()) queue else queue.filter { it.album == alb }
+                list.sortedBy { it.index ?: Int.MAX_VALUE }
+            }
+            QueueMode.QUEUE -> queue
+        }
+    }
+
+    val currentIndex = items.indexOfFirst { it.id == current?.id && it.serverId == current?.serverId }
+    LaunchedEffect(currentIndex, qmode) {
         if (currentIndex >= 0) runCatching { listState.animateScrollToItem(currentIndex) }
     }
 
     Column(modifier) {
-        current?.album?.takeIf { it.isNotBlank() }?.let {
-            Text(
-                it,
-                style = Sillon.type.displaySmall,
-                color = Sillon.colors.texteSourdine,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+        ) {
+            QueueChip("Album", qmode == QueueMode.ALBUM) { qmode = QueueMode.ALBUM }
+            QueueChip("File d'attente", qmode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
+        }
+        if (qmode == QueueMode.ALBUM) {
+            current?.album?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it,
+                    style = Sillon.type.corps.copy(fontSize = 13.sp),
+                    color = Sillon.colors.texteSourdine,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
+                )
+            }
         }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f).lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
             contentPadding = PaddingValues(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
         ) {
-            itemsIndexed(queue, key = { _, t -> t.id }) { i, track ->
+            itemsIndexed(items, key = { _, t -> t.serverId + "/" + t.id }) { _, track ->
                 val isCurrent = track.id == current?.id && track.serverId == current?.serverId
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { PlayerController.playIndex(i) }
+                        .clickable {
+                            val qi = queue.indexOfFirst { it.id == track.id && it.serverId == track.serverId }
+                            if (qi >= 0) PlayerController.playIndex(qi)
+                        }
                         .padding(vertical = Sillon.spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
@@ -111,6 +146,22 @@ fun QueuePanel(modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/** Pastille de bascule du panneau (Album / File d'attente). */
+@Composable
+private fun QueueChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        style = Sillon.type.corps,
+        color = if (selected) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) Sillon.colors.surfaceElevee else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.xs),
+    )
 }
 
 private fun queueDuration(ms: Long): String {

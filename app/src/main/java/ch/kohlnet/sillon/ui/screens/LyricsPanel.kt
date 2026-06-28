@@ -129,8 +129,14 @@ private fun LyricsList(lyrics: TrackLyrics, positionMs: Long, translations: Map<
     val listState = rememberLazyListState()
 
     LaunchedEffect(active) {
-        if (active != null) {
-            runCatching { listState.animateScrollToItem(active) }
+        val idx = active ?: return@LaunchedEffect
+        runCatching {
+            // Centrer verticalement la ligne en cours (façon Apple Music) au lieu de la coller en haut
+            // → elle ne vient plus chevaucher le bouton « Traduire » resté en haut.
+            val info = listState.layoutInfo
+            val viewportH = info.viewportSize.height
+            val itemH = info.visibleItemsInfo.firstOrNull { it.index == idx }?.size ?: 0
+            listState.animateScrollToItem(idx, -((viewportH - itemH) / 2))
         }
     }
 
