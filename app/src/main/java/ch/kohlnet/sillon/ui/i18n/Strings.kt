@@ -14,7 +14,7 @@ import ch.kohlnet.sillon.data.LanguageManager
 enum class S {
     ACCUEIL, BIBLIOTHEQUE, FAVORIS, RECHERCHE, REGLAGES,
     APPARENCE, SYSTEME, CLAIR, SOMBRE, LANGUE,
-    SERVEURS, AUCUN_SERVEUR, AJOUTER_SERVEUR, ADRESSE_SERVEUR, UTILISATEUR, MOT_DE_PASSE, AJOUTER,
+    SERVEURS, RAFRAICHIR, AUCUN_SERVEUR, AJOUTER_SERVEUR, ADRESSE_SERVEUR, UTILISATEUR, MOT_DE_PASSE, AJOUTER,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
     BIBLIOTHEQUE_VIDE, AUCUN_FAVORI,
@@ -41,6 +41,7 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
     S.SOMBRE to tr("Sombre", "Dark", "Dunkel", "Scuro", "Oscuro", "Escuro", "E errët", "Tamno", "Stgir", "Koyu"),
     S.LANGUE to tr("Langue", "Language", "Sprache", "Lingua", "Idioma", "Idioma", "Gjuha", "Jezik", "Lingua", "Dil"),
     S.SERVEURS to tr("Serveurs", "Servers", "Server", "Server", "Servidores", "Servidores", "Serverë", "Serveri", "Servers", "Sunucular"),
+    S.RAFRAICHIR to tr("Rafraîchir", "Refresh", "Aktualisieren", "Aggiorna", "Actualizar", "Atualizar", "Rifresko", "Osveži", "Actualisar", "Yenile"),
     S.AUCUN_SERVEUR to tr("Aucun serveur.", "No server.", "Kein Server.", "Nessun server.", "Ningún servidor.", "Nenhum servidor.", "Asnjë server.", "Nema servera.", "Nagin server.", "Sunucu yok."),
     S.AJOUTER_SERVEUR to tr("Ajouter un serveur", "Add a server", "Server hinzufügen", "Aggiungi un server", "Añadir un servidor", "Adicionar um servidor", "Shto një server", "Dodaj server", "Agiuntar in server", "Sunucu ekle"),
     S.ADRESSE_SERVEUR to tr("Adresse du serveur", "Server address", "Serveradresse", "Indirizzo del server", "Dirección del servidor", "Endereço do servidor", "Adresa e serverit", "Adresa servera", "Adressa dal server", "Sunucu adresi"),

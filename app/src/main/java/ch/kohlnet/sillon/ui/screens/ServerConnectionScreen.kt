@@ -1,9 +1,12 @@
 package ch.kohlnet.sillon.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -45,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -61,12 +67,13 @@ import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.theme.Sillon
 
-/** Réglages : apparence + LANGUE + gestion MULTI-SERVEUR (liste avec icônes + ajout). */
+/** Réglages : apparence + langue + MULTI-SERVEUR. Sections repliables (Apparence, Ajouter un serveur). */
 @Composable
 fun ServerConnectionScreen() {
     val appearance by AppSettings.appearance.collectAsState()
     val servers by MusicRepository.servers.collectAsState()
     val status by MusicRepository.status.collectAsState()
+    val refreshing by MusicRepository.refreshing.collectAsState()
 
     var type by rememberSaveable { mutableStateOf(ServerType.JELLYFIN) }
     var url by rememberSaveable { mutableStateOf("") }
@@ -85,20 +92,21 @@ fun ServerConnectionScreen() {
     ) {
         Text(str(S.REGLAGES), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
 
-        // — Apparence —
-        Text(str(S.APPARENCE), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            AppearanceMode.entries.forEachIndexed { i, mode ->
-                val label = when (mode) {
-                    AppearanceMode.SYSTEM -> str(S.SYSTEME)
-                    AppearanceMode.LIGHT -> str(S.CLAIR)
-                    AppearanceMode.DARK -> str(S.SOMBRE)
+        // — Apparence (repliable) —
+        CollapsibleSection(str(S.APPARENCE)) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                AppearanceMode.entries.forEachIndexed { i, mode ->
+                    val label = when (mode) {
+                        AppearanceMode.SYSTEM -> str(S.SYSTEME)
+                        AppearanceMode.LIGHT -> str(S.CLAIR)
+                        AppearanceMode.DARK -> str(S.SOMBRE)
+                    }
+                    SegmentedButton(
+                        selected = appearance == mode,
+                        onClick = { AppSettings.setAppearance(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(i, AppearanceMode.entries.size),
+                    ) { Text(label, style = Sillon.type.corps) }
                 }
-                SegmentedButton(
-                    selected = appearance == mode,
-                    onClick = { AppSettings.setAppearance(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(i, AppearanceMode.entries.size),
-                ) { Text(label, style = Sillon.type.corps) }
             }
         }
 
@@ -108,8 +116,23 @@ fun ServerConnectionScreen() {
 
         Spacer(Modifier.height(Sillon.spacing.s))
 
-        // — Serveurs configurés —
-        Text(str(S.SERVEURS), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        // — Serveurs configurés (avec rafraîchissement) —
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                str(S.SERVEURS),
+                style = Sillon.type.displaySmall,
+                color = Sillon.colors.texteSourdine,
+                modifier = Modifier.weight(1f),
+            )
+            // Bouton STABLE (le spinner reste à l'intérieur) → ne réinitialise pas l'état des sections.
+            IconButton(onClick = { MusicRepository.refresh() }, enabled = !refreshing) {
+                if (refreshing) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Sillon.colors.accentCuivre)
+                } else {
+                    Icon(Icons.Filled.Refresh, contentDescription = str(S.RAFRAICHIR), tint = Sillon.colors.texteSourdine)
+                }
+            }
+        }
         if (servers.isEmpty()) {
             Text(str(S.AUCUN_SERVEUR), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
         } else {
@@ -118,60 +141,99 @@ fun ServerConnectionScreen() {
 
         Spacer(Modifier.height(Sillon.spacing.s))
 
-        // — Ajouter un serveur —
-        Text(str(S.AJOUTER_SERVEUR), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            ServerType.entries.forEachIndexed { i, t ->
-                SegmentedButton(
-                    selected = type == t,
-                    onClick = { type = t },
-                    shape = SegmentedButtonDefaults.itemShape(i, ServerType.entries.size),
-                ) { Text(t.label, style = Sillon.type.corps) }
+        // — Ajouter un serveur (repliable, fermé par défaut) —
+        CollapsibleSection(str(S.AJOUTER_SERVEUR), initiallyExpanded = false) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                ServerType.entries.forEachIndexed { i, t ->
+                    SegmentedButton(
+                        selected = type == t,
+                        onClick = { type = t },
+                        shape = SegmentedButtonDefaults.itemShape(i, ServerType.entries.size),
+                    ) { Text(t.label, style = Sillon.type.corps) }
+                }
+            }
+            OutlinedTextField(
+                value = url, onValueChange = { url = it },
+                label = { Text(str(S.ADRESSE_SERVEUR)) },
+                placeholder = { Text("https://exemple:8096") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = user, onValueChange = { user = it },
+                label = { Text(str(S.UTILISATEUR)) }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = password, onValueChange = { password = it },
+                label = { Text(str(S.MOT_DE_PASSE)) }, singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = {
+                    MusicRepository.addServer(type, url, user, password)
+                    url = ""; user = ""; password = ""
+                },
+                enabled = !connecting && url.isNotBlank() && user.isNotBlank(),
+            ) { Text(str(S.AJOUTER), style = Sillon.type.corps) }
+
+            when (val s = status) {
+                is ConnectionStatus.Connecting -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+                ) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text(str(S.CONNEXION_EN_COURS), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+                }
+                is ConnectionStatus.Connected -> Text(
+                    "${str(S.AJOUTE)} : ${s.name}", style = Sillon.type.corps, color = Sillon.colors.signalTeal,
+                )
+                is ConnectionStatus.Error -> Text(
+                    s.message, style = Sillon.type.corps, color = MaterialTheme.colorScheme.error,
+                )
+                ConnectionStatus.Idle -> {}
             }
         }
-        OutlinedTextField(
-            value = url, onValueChange = { url = it },
-            label = { Text(str(S.ADRESSE_SERVEUR)) },
-            placeholder = { Text("https://exemple:8096") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = user, onValueChange = { user = it },
-            label = { Text(str(S.UTILISATEUR)) }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = password, onValueChange = { password = it },
-            label = { Text(str(S.MOT_DE_PASSE)) }, singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Button(
-            onClick = {
-                MusicRepository.addServer(type, url, user, password)
-                url = ""; user = ""; password = ""
-            },
-            enabled = !connecting && url.isNotBlank() && user.isNotBlank(),
-        ) { Text(str(S.AJOUTER), style = Sillon.type.corps) }
+    }
+}
 
-        when (val s = status) {
-            is ConnectionStatus.Connecting -> Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
-            ) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                Text(str(S.CONNEXION_EN_COURS), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
-            }
-            is ConnectionStatus.Connected -> Text(
-                "${str(S.AJOUTE)} : ${s.name}", style = Sillon.type.corps, color = Sillon.colors.signalTeal,
+/** En-tête de section cliquable + chevron qui pivote ; contenu masquable (accordéon). */
+@Composable
+private fun CollapsibleSection(
+    title: String,
+    initiallyExpanded: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+
+    Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.m)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+                .clickable { expanded = !expanded }
+                .padding(vertical = Sillon.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                style = Sillon.type.displaySmall,
+                color = Sillon.colors.texteSourdine,
+                modifier = Modifier.weight(1f),
             )
-            is ConnectionStatus.Error -> Text(
-                s.message, style = Sillon.type.corps, color = MaterialTheme.colorScheme.error,
+            Icon(
+                Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = Sillon.colors.texteSourdine,
+                modifier = Modifier.rotate(rotation),
             )
-            ConnectionStatus.Idle -> {}
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.m)) { content() }
         }
     }
 }

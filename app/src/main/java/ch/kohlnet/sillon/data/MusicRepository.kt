@@ -91,6 +91,10 @@ object MusicRepository {
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
 
+    /** Vrai pendant un rechargement manuel de la bibliothèque (bouton « Rafraîchir »). */
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
     /** À appeler une fois au lancement (MainActivity). Restaure serveurs + favoris. */
     fun init(context: Context) {
         if (initialized) return
@@ -176,6 +180,19 @@ object MusicRepository {
     /** Recharge les albums récents agrégés de tous les serveurs actifs. */
     suspend fun loadAlbums() {
         _albums.value = aggregate { it.recentAlbums() }
+    }
+
+    /** Rechargement MANUEL (bouton « Rafraîchir ») : recrée les providers actifs et relit la bibliothèque. */
+    fun refresh() {
+        scope.launch {
+            _refreshing.value = true
+            try {
+                rebuildProviders()
+                loadAlbums()
+            } finally {
+                _refreshing.value = false
+            }
+        }
     }
 
     /** Recherche agrégée (nom d'album + artiste) sur tous les serveurs actifs. */
