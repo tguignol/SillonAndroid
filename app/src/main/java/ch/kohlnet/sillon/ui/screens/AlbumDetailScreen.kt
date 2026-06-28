@@ -3,8 +3,6 @@ package ch.kohlnet.sillon.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -48,6 +45,7 @@ import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.PlayerController
+import ch.kohlnet.sillon.ui.components.TrackMenuButton
 import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
 import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
@@ -169,7 +167,6 @@ private fun DiscHeader(disc: Int) {
 
 @Composable
 private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
-    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -192,22 +189,9 @@ private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        // Bouton ⋮ (juste AVANT l'encodage) : ouvre le menu d'actions du titre (extensible).
-        Box {
-            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "Plus d'actions", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(20.dp))
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(str(S.LIRE_ENSUITE), style = Sillon.type.corps) },
-                    onClick = { PlayerController.playNext(track); menuOpen = false },
-                )
-                DropdownMenuItem(
-                    text = { Text(str(S.AJOUTER_FILE), style = Sillon.type.corps) },
-                    onClick = { PlayerController.addToQueue(track); menuOpen = false },
-                )
-            }
-        }
+        // Bouton ⋮ (juste AVANT l'encodage) : menu d'actions du titre (« Ajouter à une playlist » ; les
+        // actions de file d'attente y restent code-only, cf. QUEUE_UI_ENABLED). Réutilisable partout.
+        TrackMenuButton(track)
         // Type d'encodage (FLAC / ALAC / WAV…) en vert, comme ailleurs.
         track.formatLabel()?.takeIf { it.isNotBlank() }?.let {
             Text(

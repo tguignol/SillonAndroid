@@ -18,6 +18,7 @@ import ch.kohlnet.sillon.data.EqualizerState
 import ch.kohlnet.sillon.data.LanguageManager
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.PlayHistory
+import ch.kohlnet.sillon.data.Playlists
 import ch.kohlnet.sillon.data.SpectrumPrefs
 import ch.kohlnet.sillon.player.AudioOutputMonitor
 import ch.kohlnet.sillon.player.PlayerController
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
         EqualizerState.init(applicationContext)
         SpectrumPrefs.init(applicationContext)
         PlayHistory.init(applicationContext)
+        Playlists.init(applicationContext)
         requestNotificationPermission()
         enableEdgeToEdge()
         setContent {

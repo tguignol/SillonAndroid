@@ -228,7 +228,7 @@ fun AccueilScreen() {
     }
 }
 
-private enum class LibraryMode { ALBUMS, ARTISTS }
+private enum class LibraryMode { ALBUMS, ARTISTS, PLAYLISTS }
 
 /** Entrée artiste : nom, serveurs d'origine, et un album représentatif (pour déduire le format). */
 private data class ArtistEntry(val name: String, val types: List<ServerType>, val sample: Album)
@@ -244,6 +244,7 @@ fun BibliothequeScreen() {
     var browse by remember { mutableStateOf(false) } // « Parcourir » (genre / décennie)
     var selectedAlbum by remember { mutableStateOf<Album?>(null) }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
+    var selectedPlaylist by remember { mutableStateOf<String?>(null) }
     val gridState = rememberLazyGridState()   // hissés → survivent à l'ouverture d'un détail
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -253,6 +254,9 @@ fun BibliothequeScreen() {
     }
     selectedArtist?.let {
         ArtistDetailScreen(it, onBack = { selectedArtist = null }); return
+    }
+    selectedPlaylist?.let {
+        PlaylistDetailScreen(it, onBack = { selectedPlaylist = null }); return
     }
     if (browse) {
         BrowseScreen(onBack = { browse = false }); return
@@ -285,31 +289,43 @@ fun BibliothequeScreen() {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(text = str(S.BIBLIOTHEQUE), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = { browse = true }) {
-                Icon(Icons.Filled.Category, contentDescription = "Parcourir (genre / décennie)", tint = Sillon.colors.texteSourdine)
+            // « Parcourir » (genre/décennie) et le tri A→Z ne concernent que les albums/artistes.
+            if (mode != LibraryMode.PLAYLISTS) {
+                IconButton(onClick = { browse = true }) {
+                    Icon(Icons.Filled.Category, contentDescription = "Parcourir (genre / décennie)", tint = Sillon.colors.texteSourdine)
+                }
+                SortToggle(ascending) { ascending = !ascending }
             }
-            SortToggle(ascending) { ascending = !ascending }
         }
         Spacer(Modifier.height(Sillon.spacing.m))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             SegmentedButton(
                 selected = mode == LibraryMode.ALBUMS,
                 onClick = { mode = LibraryMode.ALBUMS },
-                shape = SegmentedButtonDefaults.itemShape(0, 2),
+                shape = SegmentedButtonDefaults.itemShape(0, 3),
             ) { Text(str(S.ALBUMS), style = Sillon.type.corps) }
             SegmentedButton(
                 selected = mode == LibraryMode.ARTISTS,
                 onClick = { mode = LibraryMode.ARTISTS },
-                shape = SegmentedButtonDefaults.itemShape(1, 2),
+                shape = SegmentedButtonDefaults.itemShape(1, 3),
             ) { Text(str(S.ARTISTES), style = Sillon.type.corps) }
+            SegmentedButton(
+                selected = mode == LibraryMode.PLAYLISTS,
+                onClick = { mode = LibraryMode.PLAYLISTS },
+                shape = SegmentedButtonDefaults.itemShape(2, 3),
+            ) { Text(str(S.PLAYLISTS), style = Sillon.type.corps) }
         }
         Spacer(Modifier.height(Sillon.spacing.m))
 
-        if (albums.isEmpty()) {
+        // Les playlists sont LOCALES → indépendantes des albums serveur (affichées même biblio vide).
+        if (mode == LibraryMode.PLAYLISTS) {
+            PlaylistsListScreen(onOpen = { selectedPlaylist = it })
+        } else if (albums.isEmpty()) {
             if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else when (mode) {
             LibraryMode.ALBUMS -> IndexedAlbumGrid(sortedAlbums, gridState, scope) { selectedAlbum = it }
             LibraryMode.ARTISTS -> IndexedArtistList(artists, listState, scope) { selectedArtist = it }
+            LibraryMode.PLAYLISTS -> {}
         }
     }
 }

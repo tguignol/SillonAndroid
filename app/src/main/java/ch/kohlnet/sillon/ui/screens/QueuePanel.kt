@@ -42,6 +42,14 @@ import coil3.compose.AsyncImage
 private enum class QueueMode { ALBUM, QUEUE }
 
 /**
+ * Coupe-circuit UI de la « file d'attente ». À `false`, toute l'UI de la file disparaît (chip du panneau
+ * + action « Ajouter à la file » du menu ⋮) ; le panneau ne montre plus que les titres de l'album. TOUT
+ * le code de la file (mode QUEUE, PlayerController.addToQueue/playNext, items du menu) reste en place →
+ * il suffit de repasser à `true` pour la réactiver.
+ */
+const val QUEUE_UI_ENABLED = false
+
+/**
  * Panneau latéral du lecteur. Bascule en haut :
  *  - « Album » (DÉFAUT) : l'INTÉGRALITÉ des titres de l'album du morceau courant (chargée du serveur,
  *    indépendamment de la file de lecture).
@@ -94,7 +102,8 @@ fun QueuePanel(modifier: Modifier = Modifier) {
         albumList.isNotEmpty() && queue.map { it.matchKey() } == albumList.map { it.matchKey() }
     }
     LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) qmode = QueueMode.ALBUM }
-    val mode = if (sameAsAlbum) QueueMode.ALBUM else qmode
+    // File désactivée → toujours le mode Album (le panneau ne montre que les titres de l'album).
+    val mode = if (!QUEUE_UI_ENABLED || sameAsAlbum) QueueMode.ALBUM else qmode
     val items = if (mode == QueueMode.ALBUM) albumList else queue
 
     val cur = current
@@ -106,14 +115,18 @@ fun QueuePanel(modifier: Modifier = Modifier) {
     }
 
     Column(modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
-            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
-        ) {
-            QueueChip("Album", mode == QueueMode.ALBUM) { qmode = QueueMode.ALBUM }
-            // Bouton « File d'attente » seulement si la file DIFFÈRE de l'album en cours.
-            if (!sameAsAlbum) {
-                QueueChip("File d'attente", mode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
+        // Rangée de bascule Album / File d'attente : masquée tant que la file est désactivée
+        // (un seul mode → aucun choix à présenter). Le titre de l'album reste affiché juste dessous.
+        if (QUEUE_UI_ENABLED) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+            ) {
+                QueueChip("Album", mode == QueueMode.ALBUM) { qmode = QueueMode.ALBUM }
+                // Bouton « File d'attente » seulement si la file DIFFÈRE de l'album en cours.
+                if (!sameAsAlbum) {
+                    QueueChip("File d'attente", mode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
+                }
             }
         }
         if (mode == QueueMode.ALBUM) {

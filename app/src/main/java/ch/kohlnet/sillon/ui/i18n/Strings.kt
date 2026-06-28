@@ -22,6 +22,8 @@ enum class S {
     TITRES_PLUS_ECOUTES, ALBUMS_RECEMMENT, PLUS_ECOUTES, PISTES_PREFEREES,
     BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT, ALBUMS, ARTISTES, DISQUE,
     OUT_BLUETOOTH, OUT_WIRED, OUT_SPEAKER,
+    PLAYLISTS, MES_PLAYLISTS, NOUVELLE_PLAYLIST, AJOUTER_PLAYLIST, AUCUNE_PLAYLIST, PLAYLIST_VIDE,
+    RENOMMER, SUPPRIMER, CREER, LIRE, RETIRER_PLAYLIST, TITRE, TITRES,
 }
 
 /** Construit la table d'une clé : fr est obligatoire (base), les autres sont optionnelles. */
@@ -125,6 +127,19 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
         "Nagins preferids.\nTutga sin il cor d'in album.",
         "Favori yok.\nBir albümdeki kalbe dokun.",
     ),
+    S.PLAYLISTS to tr("Playlists", "Playlists", "Playlists", "Playlist", "Listas", "Playlists", "Listat", "Plejliste", "Glistas", "Çalma listeleri"),
+    S.MES_PLAYLISTS to tr("Mes playlists", "My playlists", "Meine Playlists", "Le mie playlist", "Mis listas", "As minhas playlists", "Listat e mia", "Moje plejliste", "Mias glistas", "Listelerim"),
+    S.NOUVELLE_PLAYLIST to tr("Nouvelle playlist", "New playlist", "Neue Playlist", "Nuova playlist", "Nueva lista", "Nova playlist", "Listë e re", "Nova plejlista", "Nova glista", "Yeni liste"),
+    S.AJOUTER_PLAYLIST to tr("Ajouter à une playlist", "Add to playlist", "Zur Playlist hinzufügen", "Aggiungi a playlist", "Añadir a una lista", "Adicionar à playlist", "Shto te një listë", "Dodaj u plejlistu", "Agiuntar a ina glista", "Listeye ekle"),
+    S.AUCUNE_PLAYLIST to tr("Aucune playlist", "No playlists", "Keine Playlists", "Nessuna playlist", "Sin listas", "Sem playlists", "Asnjë listë", "Nema plejlista", "Naginas glistas", "Liste yok"),
+    S.PLAYLIST_VIDE to tr("Playlist vide", "Empty playlist", "Leere Playlist", "Playlist vuota", "Lista vacía", "Playlist vazia", "Listë bosh", "Prazna plejlista", "Glista vida", "Boş liste"),
+    S.RENOMMER to tr("Renommer", "Rename", "Umbenennen", "Rinomina", "Renombrar", "Renomear", "Riemërto", "Preimenuj", "Renomnar", "Yeniden adlandır"),
+    S.SUPPRIMER to tr("Supprimer", "Delete", "Löschen", "Elimina", "Eliminar", "Eliminar", "Fshi", "Obriši", "Stizzar", "Sil"),
+    S.CREER to tr("Créer", "Create", "Erstellen", "Crea", "Crear", "Criar", "Krijo", "Napravi", "Crear", "Oluştur"),
+    S.LIRE to tr("Lire", "Play", "Abspielen", "Riproduci", "Reproducir", "Reproduzir", "Luaj", "Pusti", "Far ir", "Çal"),
+    S.RETIRER_PLAYLIST to tr("Retirer de la playlist", "Remove from playlist", "Aus Playlist entfernen", "Rimuovi dalla playlist", "Quitar de la lista", "Remover da playlist", "Hiq nga lista", "Ukloni iz plejliste", "Allontanar da la glista", "Listeden çıkar"),
+    S.TITRE to tr("titre", "track", "Titel", "brano", "pista", "faixa", "këngë", "pesma", "toc", "parça"),
+    S.TITRES to tr("titres", "tracks", "Titel", "brani", "pistas", "faixas", "këngë", "pesme", "tocs", "parça"),
 )
 
 /** Résolution non-composable (pour usages hors composition). */
