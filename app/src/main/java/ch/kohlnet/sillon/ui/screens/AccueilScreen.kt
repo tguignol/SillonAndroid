@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,8 +25,10 @@ import androidx.compose.foundation.lazy.itemsIndexed as lazyRowItemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -136,12 +140,12 @@ fun AccueilScreen() {
 
     // Sections « écoutes » dérivées de l'historique, filtrées aux serveurs ACTIFS (listes COMPLÈTES ;
     // les carrousels en prennent un sous-ensemble, le « voir tout » affiche tout).
-    val mostPlayedTracks = remember(stats, servers) {
+    val mostPlayedStats = remember(stats, servers) {
         val activeIds = servers.filter { it.active }.map { it.id }.toSet()
-        stats.filter { it.count > 0 && it.serverId in activeIds }
-            .sortedByDescending { it.count }
-            .map { it.toTrack() }
+        stats.filter { it.count > 0 && it.serverId in activeIds }.sortedByDescending { it.count }
     }
+    val mostPlayedTracks = remember(mostPlayedStats) { mostPlayedStats.map { it.toTrack() } }
+    val mostPlayedCounts = remember(mostPlayedStats) { mostPlayedStats.map { it.count } }
     // Albums reliés à l'historique → résolus dans la bibliothèque ACTIVE par TITRE normalisé (l'artiste
     // des pistes peut manquer côté serveur) ; donc déjà filtrés par serveur actif.
     val albumsByTitle = remember(albums) { albums.groupBy { normKey(it.title) } }
@@ -192,7 +196,10 @@ fun AccueilScreen() {
             if (mostPlayedTracks.isNotEmpty()) {
                 val t = str(S.TITRES_PLUS_ECOUTES)
                 Section(t, onSeeAll = { seeAll = SeeAll.Tracks(t, mostPlayedTracks) }) {
-                    TrackCarousel(mostPlayedTracks.take(15)) { i -> PlayerController.play(mostPlayedTracks, i) }
+                    // Mise en page « 2 par hauteur, vignette à gauche (×1,5), titre à côté ».
+                    // Ancienne version (carrousel simple), gardée au cas où — il suffit de la remettre :
+                    // TrackCarousel(mostPlayedTracks.take(15)) { i -> PlayerController.play(mostPlayedTracks, i) }
+                    TrackGridCarousel(mostPlayedTracks.take(20), mostPlayedCounts.take(20)) { i -> PlayerController.play(mostPlayedTracks, i) }
                 }
             }
             if (recentlyPlayedAlbums.isNotEmpty()) {
@@ -686,6 +693,60 @@ private fun TrackCarousel(tracks: List<Track>, onPlay: (Int) -> Unit) {
     ) {
         lazyRowItemsIndexed(tracks, key = { _, t -> t.serverId + "/" + t.id }) { i, track ->
             TrackCard(track, Modifier.width(CARD)) { onPlay(i) }
+        }
+    }
+}
+
+/**
+ * Carrousel des titres en GRILLE HORIZONTALE : 2 titres empilés par colonne, vignette carrée À GAUCHE
+ * (≈ la moitié de la hauteur de section) avec titre+artiste à côté ; chaque cellule fait 1,5× la largeur
+ * d'une vignette normale. MÊME hauteur que [TrackCarousel]. `counts` = nb de lectures (façon « plus
+ * écoutés »), optionnel. Tap = lecture de la liste à partir de l'index.
+ */
+@Composable
+private fun TrackGridCarousel(tracks: List<Track>, counts: List<Int>? = null, onPlay: (Int) -> Unit) {
+    LazyHorizontalGrid(
+        rows = GridCells.Fixed(2),
+        modifier = Modifier.height(CARD + 46.dp), // ≈ même hauteur que le carrousel simple
+        contentPadding = PaddingValues(horizontal = Sillon.spacing.xl),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+    ) {
+        itemsIndexed(tracks, key = { _, t -> t.serverId + "/" + t.id }) { i, track ->
+            TrackGridRow(track, counts?.getOrNull(i)) { onPlay(i) }
+        }
+    }
+}
+
+/** Une cellule de [TrackGridCarousel] : vignette à gauche + titre/artiste (et nb de lectures) à côté. */
+@Composable
+private fun TrackGridRow(track: Track, count: Int?, onClick: () -> Unit) {
+    Row(
+        Modifier.width(CARD * 1.5f).fillMaxHeight().clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+    ) {
+        AsyncImage(
+            model = track.coverUrl,
+            contentDescription = track.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxHeight()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+                .background(placeholderBrush(track.title.ifBlank { track.id })),
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(track.title, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (track.artist.isNotBlank()) {
+                Text(track.artist, style = Sillon.type.corps.copy(fontSize = 13.sp), color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (count != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(13.dp))
+                    Text("$count", style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+                }
+            }
         }
     }
 }
