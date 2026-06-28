@@ -11,9 +11,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.util.UUID
@@ -134,6 +137,18 @@ object MusicRepository {
 
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
+
+    /**
+     * Favoris VISIBLES dans les listes (Accueil « Albums préférés », onglet Favoris) : uniquement ceux
+     * encore disponibles sur un serveur ACTIF (matchKey présent dans la biblio active). Un favori dont
+     * la seule source est désactivée disparaît des listes — et réapparaît si on réactive le serveur
+     * (non destructif). `favorites` (brut) reste utilisé pour l'état du cœur ❤️.
+     */
+    val visibleFavorites: StateFlow<List<Album>> =
+        combine(_favorites, _albums) { favs, albums ->
+            val keys = albums.mapTo(HashSet()) { it.matchKey() }
+            favs.filter { it.matchKey() in keys }
+        }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /** Pistes favorites (clés titre+artiste normalisées, propagées entre serveurs). */
     private val KEY_FAV_TRACKS = stringPreferencesKey("favoriteTrackKeys")

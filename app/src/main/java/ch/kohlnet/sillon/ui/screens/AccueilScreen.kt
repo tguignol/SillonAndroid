@@ -92,7 +92,7 @@ private val CARD = 150.dp
 @Composable
 fun AccueilScreen() {
     val albums by MusicRepository.albums.collectAsState()
-    val favorites by MusicRepository.favorites.collectAsState()
+    val favorites by MusicRepository.visibleFavorites.collectAsState()
     val loading by MusicRepository.loading.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
@@ -348,7 +348,7 @@ private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
 
 @Composable
 fun FavorisScreen() {
-    val favorites by MusicRepository.favorites.collectAsState()
+    val favorites by MusicRepository.visibleFavorites.collectAsState()
     AlbumGridScreen(str(S.FAVORIS), favorites, str(S.AUCUN_FAVORI), loading = false)
 }
 
