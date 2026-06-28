@@ -53,9 +53,19 @@ data class Track(
     /** Clé de correspondance (favoris pistes propagés entre serveurs) : titre+artiste normalisés. */
     fun matchKey(): String = (title + " " + artist).trim().lowercase().replace(Regex("\\s+"), " ")
 
-    /** Libellé qualité condensé façon iOS : « FLAC · 44,1 kHz » (codec en majuscule + fréquence). */
+    /** Libellé du format pour l'affichage : M4A lossless → « ALAC », M4A lossy → « AAC », sinon majuscule. */
+    fun formatLabel(): String? {
+        val f = format?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
+        return when {
+            f == "alac" -> "ALAC"
+            f in setOf("m4a", "m4b", "mp4", "mp4a") -> if (bitDepthBits != null) "ALAC" else "AAC"
+            else -> f.uppercase()
+        }
+    }
+
+    /** Libellé qualité condensé façon iOS : « FLAC · 44,1 kHz » (codec + fréquence). */
     fun qualityLabel(): String? {
-        val codec = format?.takeIf { it.isNotBlank() }?.uppercase()
+        val codec = formatLabel()
         val khz = sampleRateHz?.takeIf { it > 0 }?.let { hz ->
             val k = hz / 1000.0
             if (k == k.toLong().toDouble()) k.toLong().toString()
@@ -365,7 +375,7 @@ object MusicRepository {
     private val formatCache = mutableMapOf<String, String?>()
     suspend fun albumFormat(album: Album): String? {
         if (formatCache.containsKey(album.id)) return formatCache[album.id]
-        val fmt = runCatching { tracks(album).firstOrNull()?.format }.getOrNull()
+        val fmt = runCatching { tracks(album).firstOrNull()?.formatLabel() }.getOrNull()
         formatCache[album.id] = fmt
         return fmt
     }

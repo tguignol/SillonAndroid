@@ -276,7 +276,6 @@ private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(vertical = Sillon.spacing.m),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
     ) {
         Text(
             text = entry.name,
@@ -286,15 +285,26 @@ private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        format?.takeIf { it.isNotBlank() }?.let {
-            Text(
-                text = it.uppercase(),
-                style = Sillon.type.technique.copy(fontSize = 10.sp),
-                color = Sillon.colors.signalTeal,
-            )
+        // Format : colonne de largeur fixe, aligné à droite → cohérent d'une ligne à l'autre.
+        Box(Modifier.width(48.dp), contentAlignment = Alignment.CenterEnd) {
+            format?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = Sillon.type.technique.copy(fontSize = 10.sp),
+                    color = Sillon.colors.signalTeal,
+                    maxLines = 1,
+                )
+            }
         }
-        // Icône(s) du/des serveur(s) d'origine.
-        entry.types.forEach { t -> ServerMark(t, Modifier.size(18.dp)) }
+        Spacer(Modifier.width(Sillon.spacing.s))
+        // Icône(s) serveur : colonne de largeur fixe, alignées à droite, plus petites.
+        Row(
+            modifier = Modifier.width(36.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            entry.types.forEach { t -> ServerMark(t, Modifier.size(14.dp)) }
+        }
     }
 }
 
