@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
@@ -42,40 +43,65 @@ private enum class QueueMode { ALBUM, QUEUE }
 
 /**
  * Panneau latéral du lecteur. Bascule en haut :
- *  - « Album » (DÉFAUT) : les titres de l'album du morceau courant, en ordre de piste.
- *  - « File d'attente » : la file de lecture complète (ordre de lecture).
- * Le morceau EN COURS est en cuivre ; tap = saut. Barre de défilement fine (sans index alphabétique).
- * Défile automatiquement vers le morceau courant.
+ *  - « Album » (DÉFAUT) : l'INTÉGRALITÉ des titres de l'album du morceau courant (chargée du serveur,
+ *    indépendamment de la file de lecture).
+ *  - « File d'attente » : la file de lecture réelle = playlist « non officielle » que l'utilisateur mixe
+ *    à la main (l'album par défaut + ce qu'il ajoute via « Lire ensuite » / « Ajouter à la file »).
+ *    Masquée tant qu'elle est identique à l'album (rien de mixé).
+ * Le morceau EN COURS est en cuivre ; tap = saut (ou lance l'album si le titre n'est pas dans la file).
+ * Barre de défilement fine ; défile automatiquement vers le morceau courant.
  */
 @Composable
 fun QueuePanel(modifier: Modifier = Modifier) {
     val queue by PlayerController.queue.collectAsState()
     val current by PlayerController.current.collectAsState()
+    val allAlbums by MusicRepository.albums.collectAsState()
     var qmode by rememberSaveable { mutableStateOf(QueueMode.ALBUM) }
     val listState = rememberLazyListState()
 
-    // Titres de l'album du morceau courant, en ordre de piste.
-    val albumList = remember(queue, current) {
-        val alb = current?.album
-        val list = if (alb.isNullOrBlank()) queue else queue.filter { it.album == alb }
-        list.sortedBy { it.index ?: Int.MAX_VALUE }
+    // ALBUM = l'INTÉGRALITÉ des titres de l'album du morceau courant, chargée depuis le serveur
+    // (indépendamment de la file de lecture). On retrouve l'album par titre+artiste (priorité au
+    // serveur du morceau courant), puis on charge sa tracklist complète.
+    val currentAlbum = remember(allAlbums, current?.album, current?.artist, current?.serverId) {
+        val t = current
+        val title = t?.album
+        if (t == null || title.isNullOrBlank()) null
+        else {
+            val byTitle = allAlbums.filter { it.title == title }
+            byTitle.firstOrNull { it.serverId == t.serverId }
+                ?: byTitle.firstOrNull { it.artist == t.artist }
+                ?: byTitle.firstOrNull()
+        }
     }
-    // La file d'attente est-elle IDENTIQUE à l'album en cours (mêmes titres, même ordre) ?
-    // Si oui, le bouton « File d'attente » n'apporte rien → on le masque et on force le mode Album.
-    val sameAsAlbum = remember(queue, albumList) {
-        queue.map { "${it.serverId}/${it.id}" } == albumList.map { "${it.serverId}/${it.id}" }
+    var albumTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    LaunchedEffect(currentAlbum?.serverId, currentAlbum?.id) {
+        albumTracks = currentAlbum?.let { MusicRepository.tracks(it) } ?: emptyList()
     }
-    LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) qmode = QueueMode.ALBUM }
-
-    val items = remember(queue, albumList, qmode) {
-        when (qmode) {
-            QueueMode.ALBUM -> albumList
-            QueueMode.QUEUE -> queue
+    // Repli si l'album n'a pas pu être chargé : titres de l'album déjà présents dans la file.
+    val albumList = remember(albumTracks, queue, current) {
+        if (albumTracks.isNotEmpty()) albumTracks
+        else {
+            val alb = current?.album
+            (if (alb.isNullOrBlank()) queue else queue.filter { it.album == alb })
+                .sortedBy { it.index ?: Int.MAX_VALUE }
         }
     }
 
-    val currentIndex = items.indexOfFirst { it.id == current?.id && it.serverId == current?.serverId }
-    LaunchedEffect(currentIndex, qmode) {
+    // FILE D'ATTENTE = la file de lecture (l'album par défaut + les titres mixés À LA MAIN par
+    // l'utilisateur). Si elle est IDENTIQUE à l'album (même contenu, même ordre — comparaison par
+    // titre+artiste, robuste au multi-serveurs), le bouton « File d'attente » n'apporte rien → masqué.
+    val sameAsAlbum = remember(queue, albumList) {
+        albumList.isNotEmpty() && queue.map { it.matchKey() } == albumList.map { it.matchKey() }
+    }
+    LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) qmode = QueueMode.ALBUM }
+    val mode = if (sameAsAlbum) QueueMode.ALBUM else qmode
+    val items = if (mode == QueueMode.ALBUM) albumList else queue
+
+    val cur = current
+    val currentIndex = items.indexOfFirst { t ->
+        cur != null && ((t.id == cur.id && t.serverId == cur.serverId) || t.matchKey() == cur.matchKey())
+    }
+    LaunchedEffect(currentIndex, mode) {
         if (currentIndex >= 0) runCatching { listState.animateScrollToItem(currentIndex) }
     }
 
@@ -84,13 +110,13 @@ fun QueuePanel(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
             horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
         ) {
-            QueueChip("Album", qmode == QueueMode.ALBUM) { qmode = QueueMode.ALBUM }
+            QueueChip("Album", mode == QueueMode.ALBUM) { qmode = QueueMode.ALBUM }
             // Bouton « File d'attente » seulement si la file DIFFÈRE de l'album en cours.
             if (!sameAsAlbum) {
-                QueueChip("File d'attente", qmode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
+                QueueChip("File d'attente", mode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
             }
         }
-        if (qmode == QueueMode.ALBUM) {
+        if (mode == QueueMode.ALBUM) {
             current?.album?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     it,
@@ -107,14 +133,18 @@ fun QueuePanel(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth().weight(1f).lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
             contentPadding = PaddingValues(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
         ) {
-            itemsIndexed(items, key = { _, t -> t.serverId + "/" + t.id }) { _, track ->
-                val isCurrent = track.id == current?.id && track.serverId == current?.serverId
+            itemsIndexed(items, key = { index, t -> "$index/${t.serverId}/${t.id}" }) { index, track ->
+                val isCurrent = cur != null &&
+                    ((track.id == cur.id && track.serverId == cur.serverId) || track.matchKey() == cur.matchKey())
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            val qi = queue.indexOfFirst { it.id == track.id && it.serverId == track.serverId }
-                            if (qi >= 0) PlayerController.playIndex(qi)
+                            // Si le titre est déjà dans la file en cours → y sauter (garde le contexte/serveur).
+                            // Sinon (onglet Album d'un titre hors file) → lancer l'album complet depuis ce titre.
+                            val byId = queue.indexOfFirst { it.id == track.id && it.serverId == track.serverId }
+                            val qi = if (byId >= 0) byId else queue.indexOfFirst { it.matchKey() == track.matchKey() }
+                            if (qi >= 0) PlayerController.playIndex(qi) else PlayerController.play(items, index)
                         }
                         .padding(vertical = Sillon.spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
