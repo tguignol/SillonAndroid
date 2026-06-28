@@ -1,6 +1,8 @@
 package ch.kohlnet.sillon.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
@@ -70,7 +73,7 @@ import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 
-private enum class PlayerPane { COVER, LYRICS, QUEUE }
+private enum class PlayerPane { COVER, LYRICS, QUEUE, EQUALIZER }
 
 /**
  * Lecteur plein écran (façon iOS). ADAPTATIF : étroit (iPhone) = pochette en haut, contrôles dessous ;
@@ -131,6 +134,9 @@ private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, modifier: Mo
         when (pane) {
             PlayerPane.LYRICS -> LyricsPanel(t, Modifier.fillMaxSize())
             PlayerPane.QUEUE -> QueuePanel(Modifier.fillMaxSize())
+            PlayerPane.EQUALIZER -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
+                EqualizerPanel()
+            }
             PlayerPane.COVER -> Box(
                 modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                 contentAlignment = Alignment.Center,
@@ -214,10 +220,10 @@ private fun ColumnScope.Controls(
         Text(formatTime(duration), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
     }
 
-    // Provenance (nom du serveur) + qualité — petit, en vert, sous la barre.
+    // Provenance (TYPE de source : Jellyfin / Navidrome / Local — pas le nom du compte) + qualité.
     val servers by MusicRepository.servers.collectAsState()
-    val serverName = servers.firstOrNull { it.id == t.serverId }?.name
-    val info = listOfNotNull(serverName, t.qualityLabel()).joinToString("  ·  ")
+    val provenance = servers.firstOrNull { it.id == t.serverId }?.type?.badge
+    val info = listOfNotNull(provenance, t.qualityLabel()).joinToString("  ·  ")
     if (info.isNotBlank()) {
         Text(
             text = info,
@@ -230,7 +236,7 @@ private fun ColumnScope.Controls(
         )
     }
 
-    Spacer(Modifier.height(Sillon.spacing.m))
+    Spacer(Modifier.height(Sillon.spacing.l))
 
     val shuffle by PlayerController.shuffle.collectAsState()
     val repeatMode by PlayerController.repeatMode.collectAsState()
@@ -238,7 +244,7 @@ private fun ColumnScope.Controls(
     // Transport : aléatoire, précédent, −10 s, lecture, +10 s, suivant, répéter.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = { PlayerController.toggleShuffle() }) {
@@ -274,9 +280,9 @@ private fun ColumnScope.Controls(
         }
     }
 
-    Spacer(Modifier.height(Sillon.spacing.m))
+    Spacer(Modifier.height(Sillon.spacing.xl))
 
-    // Volume SOUS le transport (applicatif, façon iOS).
+    // Volume SOUS le transport, avec plus d'espace au-dessus (volume média système).
     val volume by PlayerController.volume.collectAsState()
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -320,9 +326,12 @@ private fun ColumnScope.Controls(
         IconButton(onClick = { onSetPane(if (pane == PlayerPane.LYRICS) PlayerPane.COVER else PlayerPane.LYRICS) }) {
             Icon(Icons.Filled.Lyrics, "Paroles", tint = tintIf(pane == PlayerPane.LYRICS))
         }
+        IconButton(onClick = { onSetPane(if (pane == PlayerPane.EQUALIZER) PlayerPane.COVER else PlayerPane.EQUALIZER) }) {
+            Icon(Icons.Filled.GraphicEq, "Égaliseur", tint = tintIf(pane == PlayerPane.EQUALIZER))
+        }
         if (showQueue) {
             IconButton(onClick = { onSetPane(if (pane == PlayerPane.QUEUE) PlayerPane.COVER else PlayerPane.QUEUE) }) {
-                Icon(Icons.Filled.QueueMusic, "File d'attente", tint = tintIf(pane == PlayerPane.QUEUE))
+                Icon(Icons.Filled.QueueMusic, "Titres de l'album", tint = tintIf(pane == PlayerPane.QUEUE))
             }
         }
     }
