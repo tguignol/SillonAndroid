@@ -16,7 +16,7 @@ enum class S {
     APPARENCE, SYSTEME, CLAIR, SOMBRE, LANGUE,
     SERVEURS, RAFRAICHIR, PRIORITE_HINT, AUCUN_SERVEUR, AJOUTER_SERVEUR, ADRESSE_SERVEUR, UTILISATEUR, MOT_DE_PASSE, AJOUTER,
     MODIFIER_SERVEUR, NOM, ENREGISTRER, ANNULER, MDP_GARDER, CHOISIR_DOSSIER,
-    EGALISEUR, ACTIVE, INACTIF, REINITIALISER, BANDES,
+    EGALISEUR, ACTIVE, INACTIF, REINITIALISER, BANDES, FILE_ATTENTE, VIDER,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
     BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT, ALBUMS, ARTISTES,
@@ -73,6 +73,8 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
     S.INACTIF to tr("Désactivé", "Off", "Aus", "Disattivato", "Desactivado", "Desativado", "Joaktiv", "Isključeno", "Deactivà", "Kapalı"),
     S.REINITIALISER to tr("Réinitialiser", "Reset", "Zurücksetzen", "Reimposta", "Restablecer", "Repor", "Rivendos", "Resetuj", "Reinizialisar", "Sıfırla"),
     S.BANDES to tr("Bandes", "Bands", "Bänder", "Bande", "Bandas", "Bandas", "Brezat", "Opsezi", "Bandas", "Bantlar"),
+    S.FILE_ATTENTE to tr("File d'attente", "Queue", "Warteschlange", "Coda", "Cola", "Fila", "Radha", "Red", "Cua", "Sıra"),
+    S.VIDER to tr("Vider", "Clear", "Leeren", "Svuota", "Vaciar", "Limpar", "Pastro", "Očisti", "Svidar", "Temizle"),
     S.MDP_GARDER to tr(
         "Mot de passe (vide = inchangé)", "Password (blank = unchanged)", "Passwort (leer = unverändert)",
         "Password (vuoto = invariato)", "Contraseña (vacío = sin cambios)", "Palavra-passe (vazio = inalterada)",

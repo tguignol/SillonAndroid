@@ -97,12 +97,15 @@ fun FullPlayerScreen(onClose: () -> Unit) {
         if (wide) {
             Row(
                 modifier = Modifier.fillMaxSize().padding(Sillon.spacing.xxl),
-                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xxl),
             ) {
-                MediaArea(t, pane, playing, Modifier.weight(1f).fillMaxHeight())
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                    Controls(t, playing, position, duration, pane) { pane = it }
+                // Gauche : pochette ronde / paroles (la file d'attente est à droite).
+                MediaArea(t, if (pane == PlayerPane.QUEUE) PlayerPane.COVER else pane, playing, Modifier.weight(1f).fillMaxHeight())
+                // Droite : contrôles EN HAUT + file d'attente DESSOUS (titres suivants/précédents).
+                Column(modifier = Modifier.weight(1f)) {
+                    Controls(t, playing, position, duration, pane, showQueue = false) { pane = it }
+                    Spacer(Modifier.height(Sillon.spacing.l))
+                    QueuePanel(Modifier.weight(1f).fillMaxWidth())
                 }
             }
         } else {
@@ -159,6 +162,7 @@ private fun ColumnScope.Controls(
     position: Long,
     duration: Long,
     pane: PlayerPane,
+    showQueue: Boolean = true,
     onSetPane: (PlayerPane) -> Unit,
 ) {
     Text(
@@ -308,8 +312,10 @@ private fun ColumnScope.Controls(
         IconButton(onClick = { onSetPane(if (pane == PlayerPane.LYRICS) PlayerPane.COVER else PlayerPane.LYRICS) }) {
             Icon(Icons.Filled.Lyrics, "Paroles", tint = tintIf(pane == PlayerPane.LYRICS))
         }
-        IconButton(onClick = { onSetPane(if (pane == PlayerPane.QUEUE) PlayerPane.COVER else PlayerPane.QUEUE) }) {
-            Icon(Icons.Filled.QueueMusic, "File d'attente", tint = tintIf(pane == PlayerPane.QUEUE))
+        if (showQueue) {
+            IconButton(onClick = { onSetPane(if (pane == PlayerPane.QUEUE) PlayerPane.COVER else PlayerPane.QUEUE) }) {
+                Icon(Icons.Filled.QueueMusic, "File d'attente", tint = tintIf(pane == PlayerPane.QUEUE))
+            }
         }
     }
 

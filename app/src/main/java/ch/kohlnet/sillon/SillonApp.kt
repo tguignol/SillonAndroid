@@ -3,19 +3,26 @@ package ch.kohlnet.sillon
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Menu
@@ -23,6 +30,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
@@ -31,6 +40,8 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -42,11 +53,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.player.PlayerController
+import ch.kohlnet.sillon.ui.theme.placeholderBrush
+import coil3.compose.AsyncImage
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.screens.AccueilScreen
@@ -181,46 +198,112 @@ private fun SillonBottomBar(current: SillonDestination, onSelect: (SillonDestina
     }
 }
 
-/** Barre « Lecture en cours » : titre/artiste + lecture/pause ; tap = lecteur plein écran. */
+/**
+ * Barre « Lecture en cours » riche (façon mini-lecteur) : pochette + cœur + titre/artiste centrés +
+ * barre de progression (temps écoulé / restant) + précédent / lecture-pause (rond) / suivant.
+ * Tap (hors contrôles) = lecteur plein écran.
+ */
 @Composable
 private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
     val track by PlayerController.current.collectAsState()
     val playing by PlayerController.isPlaying.collectAsState()
+    val position by PlayerController.positionMs.collectAsState()
+    val duration by PlayerController.durationMs.collectAsState()
+    val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()
     val t = track ?: return
+    val isFav = t.matchKey() in favTracks
+    val dur = duration.coerceAtLeast(1L)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (bottomInset) Modifier.navigationBarsPadding() else Modifier)
+            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.xs)
+            .clip(RoundedCornerShape(Sillon.spacing.l))
             .background(Sillon.colors.surfaceElevee)
             .clickable(onClick = onOpen)
-            .then(if (bottomInset) Modifier.navigationBarsPadding() else Modifier)
-            .padding(horizontal = Sillon.spacing.l, vertical = Sillon.spacing.s),
+            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.s),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
     ) {
-        Column(Modifier.weight(1f)) {
+        AsyncImage(
+            model = t.coverUrl,
+            contentDescription = t.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(Sillon.spacing.s))
+                .background(placeholderBrush(t.title.ifBlank { t.id })),
+        )
+        IconButton(onClick = { MusicRepository.toggleTrackFavorite(t) }) {
+            Icon(
+                if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = "Favori",
+                tint = if (isFav) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+            )
+        }
+
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 t.title,
                 style = Sillon.type.corps,
                 color = Sillon.colors.texteIvoire,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
             )
             if (t.artist.isNotBlank()) {
                 Text(
                     t.artist,
-                    style = Sillon.type.corps.copy(fontSize = 13.sp),
+                    style = Sillon.type.corps.copy(fontSize = 12.sp),
                     color = Sillon.colors.texteSourdine,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
                 )
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(barTime(position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+                Slider(
+                    value = position.coerceIn(0L, dur).toFloat(),
+                    onValueChange = { PlayerController.seekTo(it.toLong()) },
+                    valueRange = 0f..dur.toFloat(),
+                    modifier = Modifier.weight(1f).padding(horizontal = Sillon.spacing.s),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Sillon.colors.accentCuivre,
+                        activeTrackColor = Sillon.colors.accentCuivre,
+                        inactiveTrackColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
+                    ),
+                )
+                Text("-" + barTime(dur - position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+            }
         }
-        IconButton(onClick = { PlayerController.togglePlayPause() }) {
+
+        IconButton(onClick = { PlayerController.previous() }) {
+            Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire)
+        }
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Sillon.colors.texteIvoire)
+                .clickable { PlayerController.togglePlayPause() },
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(
-                imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                 contentDescription = if (playing) "Pause" else "Lecture",
-                tint = Sillon.colors.accentCuivre,
+                tint = Sillon.colors.fondNoir,
+                modifier = Modifier.size(26.dp),
             )
         }
+        IconButton(onClick = { PlayerController.next() }) {
+            Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire)
+        }
     }
+}
+
+private fun barTime(ms: Long): String {
+    val s = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(s / 60, s % 60)
 }

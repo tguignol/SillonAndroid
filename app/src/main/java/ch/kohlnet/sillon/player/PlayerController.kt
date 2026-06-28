@@ -180,6 +180,13 @@ object PlayerController {
         c.play()
     }
 
+    /** Vide la file d'attente (arrête la lecture). */
+    fun clearQueue() {
+        controller?.clearMediaItems()
+        _queue.value = emptyList()
+        _current.value = null
+    }
+
     fun toggleShuffle() {
         controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }
     }
