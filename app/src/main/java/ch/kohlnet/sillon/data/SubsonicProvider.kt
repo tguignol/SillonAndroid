@@ -40,6 +40,7 @@ data class SubResponse(
     val title: String = "",
     val artist: String = "",
     val track: Int? = null,
+    val discNumber: Int? = null,       // n° de disque (albums multi-disques) — pour le tri, comme iOS
     val duration: Int? = null, // secondes
     val coverArt: String? = null,
     val album: String? = null,
@@ -99,7 +100,11 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
      * AUDIBLES (sinon : lecture muette). Le reste (FLAC/MP3/AAC/Opus/Ogg/WAV) passe en natif (lossless).
      */
     private fun streamUrl(songId: String, transcode: Boolean = false): String {
-        val q = if (transcode) "&format=mp3&maxBitRate=320" else ""
+        // `format=raw` (comme iOS) : le serveur renvoie le FICHIER ORIGINAL, avec Content-Length et
+        // Accept-Ranges → ExoPlayer connaît la durée, le seek marche et l'enchaînement vers le titre
+        // suivant est fiable. Sans ce paramètre, Navidrome peut transcoder à la volée (flux chunked
+        // sans longueur) → durée inconnue, seek/continuité cassés. ALAC garde son transcodage mp3.
+        val q = if (transcode) "&format=mp3&maxBitRate=320" else "&format=raw"
         return "$base/rest/stream?id=${URLEncoder.encode(songId, "UTF-8")}&${authQuery()}$q"
     }
 
@@ -140,7 +145,11 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
     }
 
     override suspend fun tracks(albumId: String): List<Track> =
-        api("getAlbum", mapOf("id" to albumId)).album?.song.orEmpty().map { s ->
+        api("getAlbum", mapOf("id" to albumId)).album?.song.orEmpty()
+            // Tri (disque, piste, titre) comme iOS : sans cela, l'ordre dépend du serveur et les
+            // albums multi-disques sont mal ordonnés (« pas alignés »).
+            .sortedWith(compareBy({ it.discNumber ?: 1 }, { it.track ?: Int.MAX_VALUE }, { it.title }))
+            .map { s ->
             Track(
                 id = s.id,
                 title = s.title,
