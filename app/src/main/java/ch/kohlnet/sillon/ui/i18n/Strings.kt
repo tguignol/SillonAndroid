@@ -18,7 +18,7 @@ enum class S {
     MODIFIER_SERVEUR, NOM, ENREGISTRER, ANNULER, MDP_GARDER,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
-    BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT,
+    BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT, ALBUMS, ARTISTES,
     OUT_BLUETOOTH, OUT_WIRED, OUT_SPEAKER,
 }
 
@@ -91,6 +91,8 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
         "Albüm yok.\nAyarlar'dan bir sunucuya bağlan.",
     ),
     S.CHARGEMENT to tr("Chargement…", "Loading…", "Wird geladen…", "Caricamento…", "Cargando…", "A carregar…", "Po ngarkohet…", "Učitavanje…", "Chargiar…", "Yükleniyor…"),
+    S.ALBUMS to tr("Albums", "Albums", "Alben", "Album", "Álbumes", "Álbuns", "Albume", "Albumi", "Albums", "Albümler"),
+    S.ARTISTES to tr("Artistes", "Artists", "Künstler", "Artisti", "Artistas", "Artistas", "Artistët", "Izvođači", "Artists", "Sanatçılar"),
     S.OUT_BLUETOOTH to tr("Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth"),
     S.OUT_WIRED to tr("Casque", "Headphones", "Kopfhörer", "Cuffie", "Auriculares", "Auscultadores", "Kufje", "Slušalice", "Cufftgas", "Kulaklık"),
     S.OUT_SPEAKER to tr("Haut-parleur", "Speaker", "Lautsprecher", "Altoparlante", "Altavoz", "Altifalante", "Altoparlant", "Zvučnik", "Plicontrol", "Hoparlör"),

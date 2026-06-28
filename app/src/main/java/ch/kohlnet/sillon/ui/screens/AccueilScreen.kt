@@ -7,14 +7,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items as lazyRowItems
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -22,12 +29,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,13 +59,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
+import ch.kohlnet.sillon.ui.components.AzScrollIndex
 import ch.kohlnet.sillon.ui.components.SourceBadge
+import ch.kohlnet.sillon.ui.components.azSortKey
+import ch.kohlnet.sillon.ui.components.azTargetIndex
+import ch.kohlnet.sillon.ui.components.indexLetter
 import ch.kohlnet.sillon.ui.components.lazyGridScrollbar
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 private val CARD = 150.dp
@@ -114,11 +132,130 @@ fun AccueilScreen() {
     }
 }
 
+private enum class LibraryMode { ALBUMS, ARTISTS }
+
+/** Bibliothèque : bascule Albums / Artistes, tri alphabétique, index A-Z à droite (presse M → albums en M). */
 @Composable
 fun BibliothequeScreen() {
     val albums by MusicRepository.albums.collectAsState()
     val loading by MusicRepository.loading.collectAsState()
-    AlbumGridScreen(str(S.BIBLIOTHEQUE), albums, str(S.BIBLIOTHEQUE_VIDE), loading)
+    var mode by rememberSaveable { mutableStateOf(LibraryMode.ALBUMS) }
+    var selectedAlbum by remember { mutableStateOf<Album?>(null) }
+    var selectedArtist by remember { mutableStateOf<String?>(null) }
+    val gridState = rememberLazyGridState()   // hissés → survivent à l'ouverture d'un détail
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    selectedAlbum?.let {
+        AlbumDetailScreen(it, onBack = { selectedAlbum = null }); return
+    }
+    selectedArtist?.let {
+        ArtistDetailScreen(it, onBack = { selectedArtist = null }); return
+    }
+
+    val sortedAlbums = remember(albums) { albums.sortedBy { azSortKey(it.title) } }
+    val artists = remember(albums) {
+        albums.filter { it.artist.isNotBlank() }
+            .groupBy { it.artist.trim().lowercase() }
+            .map { (_, list) -> list.first().artist.trim() to list.size }
+            .sortedBy { azSortKey(it.first) }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = Sillon.spacing.xl)
+            .padding(top = Sillon.spacing.l),
+    ) {
+        Text(text = str(S.BIBLIOTHEQUE), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
+        Spacer(Modifier.height(Sillon.spacing.m))
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = mode == LibraryMode.ALBUMS,
+                onClick = { mode = LibraryMode.ALBUMS },
+                shape = SegmentedButtonDefaults.itemShape(0, 2),
+            ) { Text(str(S.ALBUMS), style = Sillon.type.corps) }
+            SegmentedButton(
+                selected = mode == LibraryMode.ARTISTS,
+                onClick = { mode = LibraryMode.ARTISTS },
+                shape = SegmentedButtonDefaults.itemShape(1, 2),
+            ) { Text(str(S.ARTISTES), style = Sillon.type.corps) }
+        }
+        Spacer(Modifier.height(Sillon.spacing.m))
+
+        if (albums.isEmpty()) {
+            if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
+        } else when (mode) {
+            LibraryMode.ALBUMS -> IndexedAlbumGrid(sortedAlbums, gridState, scope) { selectedAlbum = it }
+            LibraryMode.ARTISTS -> IndexedArtistList(artists, listState, scope) { selectedArtist = it }
+        }
+    }
+}
+
+@Composable
+private fun IndexedAlbumGrid(
+    albums: List<Album>,
+    gridState: LazyGridState,
+    scope: CoroutineScope,
+    onClick: (Album) -> Unit,
+) {
+    val letters = remember(albums) { albums.map { indexLetter(it.title) } }
+    val present = remember(letters) { letters.toSet() }
+    Row(Modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(CARD),
+            state = gridState,
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+            verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
+            contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+        ) {
+            items(albums, key = { it.id }) { album -> AlbumCard(album) { onClick(album) } }
+        }
+        AzScrollIndex(present = present, onLetter = { c ->
+            scope.launch { gridState.scrollToItem(azTargetIndex(letters, c)) }
+        })
+    }
+}
+
+@Composable
+private fun IndexedArtistList(
+    artists: List<Pair<String, Int>>,
+    listState: LazyListState,
+    scope: CoroutineScope,
+    onClick: (String) -> Unit,
+) {
+    val letters = remember(artists) { artists.map { indexLetter(it.first) } }
+    val present = remember(letters) { letters.toSet() }
+    Row(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+        ) {
+            lazyRowItems(artists, key = { it.first }) { (name, count) ->
+                ArtistRow(name, count) { onClick(name) }
+            }
+        }
+        AzScrollIndex(present = present, onLetter = { c ->
+            scope.launch { listState.scrollToItem(azTargetIndex(letters, c)) }
+        })
+    }
+}
+
+@Composable
+private fun ArtistRow(name: String, albumCount: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = Sillon.spacing.m),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, modifier = Modifier.weight(1f))
+        Text("$albumCount", style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+    }
 }
 
 @Composable

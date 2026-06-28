@@ -19,9 +19,9 @@ import androidx.compose.ui.unit.dp
  * Mince barre de défilement (« ascenseur ») qui APPARAÎT quand l'utilisateur scrolle puis s'estompe,
  * façon iOS. Position/taille du curseur estimées depuis le LazyListState/LazyGridState.
  */
-fun Modifier.lazyColumnScrollbar(state: LazyListState, color: Color, width: Dp = 4.dp): Modifier = composed {
+fun Modifier.lazyColumnScrollbar(state: LazyListState, color: Color, width: Dp = 5.dp): Modifier = composed {
     val alpha by animateFloatAsState(
-        targetValue = if (state.isScrollInProgress) 0.7f else 0f,
+        targetValue = if (state.isScrollInProgress) 0.85f else 0f,
         animationSpec = tween(durationMillis = if (state.isScrollInProgress) 120 else 600),
         label = "scrollbarAlpha",
     )
@@ -46,9 +46,9 @@ fun Modifier.lazyColumnScrollbar(state: LazyListState, color: Color, width: Dp =
     }
 }
 
-fun Modifier.lazyGridScrollbar(state: LazyGridState, color: Color, width: Dp = 4.dp): Modifier = composed {
+fun Modifier.lazyGridScrollbar(state: LazyGridState, color: Color, width: Dp = 5.dp): Modifier = composed {
     val alpha by animateFloatAsState(
-        targetValue = if (state.isScrollInProgress) 0.7f else 0f,
+        targetValue = if (state.isScrollInProgress) 0.85f else 0f,
         animationSpec = tween(durationMillis = if (state.isScrollInProgress) 120 else 600),
         label = "scrollbarAlpha",
     )
