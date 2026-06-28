@@ -1,7 +1,14 @@
 package ch.kohlnet.sillon.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import ch.kohlnet.sillon.ui.i18n.S
+import ch.kohlnet.sillon.ui.i18n.str
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -133,12 +140,26 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
+    // Appui = lecture (remplace la file). Appui LONG = menu « Lire ensuite » / « Ajouter à la file ».
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(str(S.LIRE_ENSUITE), style = Sillon.type.corps) },
+                onClick = { PlayerController.playNext(track); menuOpen = false },
+            )
+            DropdownMenuItem(
+                text = { Text(str(S.AJOUTER_FILE), style = Sillon.type.corps) },
+                onClick = { PlayerController.addToQueue(track); menuOpen = false },
+            )
+        }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
             .padding(vertical = Sillon.spacing.s),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
@@ -172,6 +193,7 @@ private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
                 style = Sillon.type.technique,
                 color = Sillon.colors.texteSourdine,
             )
+        }
         }
     }
 }

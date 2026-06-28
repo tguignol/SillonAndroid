@@ -16,7 +16,7 @@ enum class S {
     APPARENCE, SYSTEME, CLAIR, SOMBRE, LANGUE,
     SERVEURS, RAFRAICHIR, PRIORITE_HINT, AUCUN_SERVEUR, AJOUTER_SERVEUR, ADRESSE_SERVEUR, UTILISATEUR, MOT_DE_PASSE, AJOUTER,
     MODIFIER_SERVEUR, NOM, ENREGISTRER, ANNULER, MDP_GARDER, CHOISIR_DOSSIER,
-    EGALISEUR, ACTIVE, INACTIF, REINITIALISER, BANDES, FILE_ATTENTE, VIDER,
+    EGALISEUR, ACTIVE, INACTIF, REINITIALISER, BANDES, FILE_ATTENTE, VIDER, LIRE_ENSUITE, AJOUTER_FILE,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
     TITRES_PLUS_ECOUTES, ALBUMS_RECEMMENT, PLUS_ECOUTES, PISTES_PREFEREES,
@@ -110,6 +110,8 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
     S.OUT_BLUETOOTH to tr("Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth"),
     S.OUT_WIRED to tr("Casque", "Headphones", "Kopfhörer", "Cuffie", "Auriculares", "Auscultadores", "Kufje", "Slušalice", "Cufftgas", "Kulaklık"),
     S.OUT_SPEAKER to tr("Haut-parleur", "Speaker", "Lautsprecher", "Altoparlante", "Altavoz", "Altifalante", "Altoparlant", "Zvučnik", "Plicontrol", "Hoparlör"),
+    S.LIRE_ENSUITE to tr("Lire ensuite", "Play next", "Als Nächstes", "Riproduci dopo", "Reproducir a continuación", "Tocar a seguir", "Luaj më pas", "Pusti sljedeće", "Tutgar suenter", "Sırada çal"),
+    S.AJOUTER_FILE to tr("Ajouter à la file d'attente", "Add to queue", "Zur Warteschlange", "Aggiungi alla coda", "Añadir a la cola", "Adicionar à fila", "Shto në radhë", "Dodaj u red", "Agiuntar a la glista", "Sıraya ekle"),
     S.AUCUN_FAVORI to tr(
         "Aucun favori.\nTouche le cœur sur un album.",
         "No favorites.\nTap the heart on an album.",

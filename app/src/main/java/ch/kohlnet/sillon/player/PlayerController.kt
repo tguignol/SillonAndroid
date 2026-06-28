@@ -103,31 +103,49 @@ object PlayerController {
                     _positionMs.value = it.currentPosition.coerceAtLeast(0)
                     _durationMs.value = it.duration.coerceAtLeast(0)
                 }
+                refreshVolume() // synchronise la barre de volume du lecteur avec les touches physiques
                 delay(500)
             }
         }
     }
 
+    private fun mediaItem(t: Track): MediaItem =
+        MediaItem.Builder()
+            .setUri(t.streamUrl)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(t.title)
+                    .setArtist(t.artist)
+                    .setArtworkUri(t.coverUrl?.let(Uri::parse))
+                    .build()
+            )
+            .build()
+
     /** Démarre la lecture d'une file de morceaux à partir de `startIndex`. */
     fun play(tracks: List<Track>, startIndex: Int) {
         val c = controller ?: return
         _queue.value = tracks
-        val items = tracks.map { t ->
-            MediaItem.Builder()
-                .setUri(t.streamUrl)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(t.title)
-                        .setArtist(t.artist)
-                        .setArtworkUri(t.coverUrl?.let(Uri::parse))
-                        .build()
-                )
-                .build()
-        }
-        c.setMediaItems(items, startIndex, 0L)
+        c.setMediaItems(tracks.map(::mediaItem), startIndex, 0L)
         c.prepare()
         c.play()
         _current.value = tracks.getOrNull(startIndex)
+    }
+
+    /** Ajoute un titre À LA FIN de la file d'attente (démarre la lecture si la file était vide). */
+    fun addToQueue(track: Track) {
+        val c = controller ?: return
+        if (_queue.value.isEmpty()) { play(listOf(track), 0); return }
+        c.addMediaItem(mediaItem(track))
+        _queue.value = _queue.value + track
+    }
+
+    /** Insère un titre JUSTE APRÈS le morceau courant (« Lire ensuite »). */
+    fun playNext(track: Track) {
+        val c = controller ?: return
+        if (_queue.value.isEmpty()) { play(listOf(track), 0); return }
+        val at = (c.currentMediaItemIndex + 1).coerceIn(0, _queue.value.size)
+        c.addMediaItem(at, mediaItem(track))
+        _queue.value = _queue.value.toMutableList().also { it.add(at, track) }
     }
 
     fun togglePlayPause() {
