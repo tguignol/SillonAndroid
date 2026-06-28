@@ -109,7 +109,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 MediaArea(t, if (pane == PlayerPane.QUEUE) PlayerPane.COVER else pane, playing, wide = true, Modifier.weight(1f).fillMaxHeight())
                 // Droite : contrôles EN HAUT + file d'attente DESSOUS (titres suivants/précédents).
                 Column(modifier = Modifier.weight(1f)) {
-                    Controls(t, playing, position, duration, pane, showQueue = false) { pane = it }
+                    // tight = true : colonne ~moitié de l'écran interne → transport compacté pour que
+                    // les 7 boutons (dont « répéter ») tiennent sans être coupés.
+                    Controls(t, playing, position, duration, pane, showQueue = false, tight = true) { pane = it }
                     Spacer(Modifier.height(Sillon.spacing.l))
                     QueuePanel(Modifier.weight(1f).fillMaxWidth())
                 }
@@ -209,6 +211,7 @@ private fun ColumnScope.Controls(
     duration: Long,
     pane: PlayerPane,
     showQueue: Boolean = true,
+    tight: Boolean = false,
     onSetPane: (PlayerPane) -> Unit,
 ) {
     Text(
@@ -271,36 +274,44 @@ private fun ColumnScope.Controls(
     val shuffle by PlayerController.shuffle.collectAsState()
     val repeatMode by PlayerController.repeatMode.collectAsState()
 
+    // En `tight` (colonne ~moitié de l'écran interne du Fold), on COMPACTE les boutons (40 dp) et on
+    // répartit en SpaceEvenly, sinon les 7 débordaient et « répéter » (à droite) était coupé. Écran
+    // externe (1 colonne) : inchangé (boutons par défaut, espacement centré).
+    val sideBtn = if (tight) Modifier.size(40.dp) else Modifier
     // Transport : aléatoire, précédent, −10 s, lecture, +10 s, suivant, répéter.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s, Alignment.CenterHorizontally),
+        horizontalArrangement = if (tight) Arrangement.SpaceEvenly
+            else Arrangement.spacedBy(Sillon.spacing.s, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { PlayerController.toggleShuffle() }) {
+        IconButton(onClick = { PlayerController.toggleShuffle() }, modifier = sideBtn) {
             Icon(Icons.Filled.Shuffle, "Aléatoire", tint = tintIf(shuffle), modifier = Modifier.size(22.dp))
         }
-        IconButton(onClick = { PlayerController.previous() }) {
+        IconButton(onClick = { PlayerController.previous() }, modifier = sideBtn) {
             Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(30.dp))
         }
-        IconButton(onClick = { PlayerController.skipBackward() }) {
+        IconButton(onClick = { PlayerController.skipBackward() }, modifier = sideBtn) {
             Icon(Icons.Filled.Replay10, "−10 s", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(28.dp))
         }
-        IconButton(onClick = { PlayerController.togglePlayPause() }) {
+        IconButton(
+            onClick = { PlayerController.togglePlayPause() },
+            modifier = if (tight) Modifier.size(48.dp) else Modifier,
+        ) {
             Icon(
                 if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                 contentDescription = if (playing) "Pause" else "Lecture",
                 tint = Sillon.colors.accentCuivre,
-                modifier = Modifier.size(54.dp),
+                modifier = Modifier.size(if (tight) 44.dp else 54.dp),
             )
         }
-        IconButton(onClick = { PlayerController.skipForward() }) {
+        IconButton(onClick = { PlayerController.skipForward() }, modifier = sideBtn) {
             Icon(Icons.Filled.Forward10, "+10 s", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(28.dp))
         }
-        IconButton(onClick = { PlayerController.next() }) {
+        IconButton(onClick = { PlayerController.next() }, modifier = sideBtn) {
             Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(30.dp))
         }
-        IconButton(onClick = { PlayerController.cycleRepeat() }) {
+        IconButton(onClick = { PlayerController.cycleRepeat() }, modifier = sideBtn) {
             Icon(
                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                 contentDescription = "Répéter",

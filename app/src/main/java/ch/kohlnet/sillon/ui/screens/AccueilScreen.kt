@@ -441,10 +441,123 @@ private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
     }
 }
 
+private enum class FavMode { ALBUMS, TRACKS }
+
 @Composable
 fun FavorisScreen() {
     val favorites by MusicRepository.visibleFavorites.collectAsState()
-    AlbumGridScreen(str(S.FAVORIS), favorites, str(S.AUCUN_FAVORI), loading = false)
+    val stats by PlayHistory.stats.collectAsState()
+    val favTrackKeys by MusicRepository.favoriteTrackKeys.collectAsState()
+    val servers by MusicRepository.servers.collectAsState()
+    // Titres favoris : pistes mises en favori ayant un instantané d'écoute, sur serveurs actifs (idem Accueil).
+    val favoriteTracks = remember(stats, favTrackKeys, servers) {
+        val activeIds = servers.filter { it.active }.map { it.id }.toSet()
+        stats.filter { it.matchKey() in favTrackKeys && it.serverId in activeIds }
+            .sortedByDescending { it.lastPlayedAt }
+            .map { it.toTrack() }
+    }
+
+    var mode by rememberSaveable { mutableStateOf(FavMode.ALBUMS) }
+    var selected by remember { mutableStateOf<Album?>(null) }
+    val sel = selected
+    if (sel != null) {
+        AlbumDetailScreen(sel, onBack = { selected = null })
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = Sillon.spacing.xl)
+            .padding(top = Sillon.spacing.l),
+    ) {
+        Text(str(S.FAVORIS), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
+        Spacer(Modifier.height(Sillon.spacing.m))
+        // Deux boutons : Albums préférés / Pistes préférées — sépare favoris albums et favoris titres.
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = mode == FavMode.ALBUMS,
+                onClick = { mode = FavMode.ALBUMS },
+                shape = SegmentedButtonDefaults.itemShape(0, 2),
+            ) {
+                Text(str(S.ALBUMS_PREFERES), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            }
+            SegmentedButton(
+                selected = mode == FavMode.TRACKS,
+                onClick = { mode = FavMode.TRACKS },
+                shape = SegmentedButtonDefaults.itemShape(1, 2),
+            ) {
+                Text(str(S.PISTES_PREFEREES), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.height(Sillon.spacing.m))
+
+        when (mode) {
+            FavMode.ALBUMS ->
+                if (favorites.isEmpty()) {
+                    EmptyHint(str(S.AUCUN_FAVORI))
+                } else {
+                    val gridState = rememberLazyGridState()
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(CARD),
+                        state = gridState,
+                        modifier = Modifier.fillMaxSize().lazyGridScrollbar(gridState, Sillon.colors.texteSourdine),
+                        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+                        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
+                        contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+                    ) {
+                        items(favorites, key = { it.id }) { album ->
+                            AlbumCard(album) { selected = album }
+                        }
+                    }
+                }
+            FavMode.TRACKS ->
+                if (favoriteTracks.isEmpty()) {
+                    EmptyHint(str(S.AUCUN_FAVORI))
+                } else {
+                    val listState = rememberLazyListState()
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize().lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
+                        contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+                    ) {
+                        lazyRowItemsIndexed(favoriteTracks, key = { _, t -> t.serverId + "/" + t.id }) { i, track ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { PlayerController.play(favoriteTracks, i) }
+                                    .padding(vertical = Sillon.spacing.s),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+                            ) {
+                                AsyncImage(
+                                    model = track.coverUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(Sillon.spacing.xs))
+                                        .background(placeholderBrush(track.title.ifBlank { track.id })),
+                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(track.title, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (track.artist.isNotBlank()) {
+                                        Text(track.artist, style = Sillon.type.corps.copy(fontSize = 13.sp), color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                                track.formatLabel()?.takeIf { it.isNotBlank() }?.let {
+                                    Text(it, style = Sillon.type.technique.copy(fontSize = 10.sp), color = Sillon.colors.signalTeal, maxLines = 1)
+                                }
+                                track.durationMs?.let {
+                                    Text(seeAllDuration(it), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+                                }
+                            }
+                        }
+                    }
+                }
+        }
+    }
 }
 
 /** En-tête de section + contenu (carrousel). `onSeeAll` non nul → flèche « voir tout » à droite du titre. */
