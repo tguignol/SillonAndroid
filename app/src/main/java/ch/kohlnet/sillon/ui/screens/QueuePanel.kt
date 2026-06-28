@@ -54,13 +54,22 @@ fun QueuePanel(modifier: Modifier = Modifier) {
     var qmode by rememberSaveable { mutableStateOf(QueueMode.ALBUM) }
     val listState = rememberLazyListState()
 
-    val items = remember(queue, current, qmode) {
+    // Titres de l'album du morceau courant, en ordre de piste.
+    val albumList = remember(queue, current) {
+        val alb = current?.album
+        val list = if (alb.isNullOrBlank()) queue else queue.filter { it.album == alb }
+        list.sortedBy { it.index ?: Int.MAX_VALUE }
+    }
+    // La file d'attente est-elle IDENTIQUE à l'album en cours (mêmes titres, même ordre) ?
+    // Si oui, le bouton « File d'attente » n'apporte rien → on le masque et on force le mode Album.
+    val sameAsAlbum = remember(queue, albumList) {
+        queue.map { "${it.serverId}/${it.id}" } == albumList.map { "${it.serverId}/${it.id}" }
+    }
+    LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) qmode = QueueMode.ALBUM }
+
+    val items = remember(queue, albumList, qmode) {
         when (qmode) {
-            QueueMode.ALBUM -> {
-                val alb = current?.album
-                val list = if (alb.isNullOrBlank()) queue else queue.filter { it.album == alb }
-                list.sortedBy { it.index ?: Int.MAX_VALUE }
-            }
+            QueueMode.ALBUM -> albumList
             QueueMode.QUEUE -> queue
         }
     }
@@ -76,7 +85,10 @@ fun QueuePanel(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
         ) {
             QueueChip("Album", qmode == QueueMode.ALBUM) { qmode = QueueMode.ALBUM }
-            QueueChip("File d'attente", qmode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
+            // Bouton « File d'attente » seulement si la file DIFFÈRE de l'album en cours.
+            if (!sameAsAlbum) {
+                QueueChip("File d'attente", qmode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
+            }
         }
         if (qmode == QueueMode.ALBUM) {
             current?.album?.takeIf { it.isNotBlank() }?.let {

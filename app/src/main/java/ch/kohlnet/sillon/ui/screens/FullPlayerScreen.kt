@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.LibraryAddCheck
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -350,9 +352,17 @@ private fun ColumnScope.Controls(
     // Boutons (favori/paroles/égaliseur/file) rapprochés du transport et du volume.
     Spacer(Modifier.height(Sillon.spacing.s))
 
-    // Favori (piste courante) + Paroles + File.
+    // Favori PISTE (cœur) + favori ALBUM + Paroles + Égaliseur + File.
     val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()
     val isFav = t.matchKey() in favTracks
+    // Album du titre courant, retrouvé dans la biblio → favori ALBUM (sans favoriser tous les titres).
+    val allAlbums by MusicRepository.albums.collectAsState()
+    val favAlbums by MusicRepository.favorites.collectAsState()
+    val currentAlbum = remember(allAlbums, t.album, t.artist) {
+        val byTitle = allAlbums.filter { it.title == t.album }
+        byTitle.firstOrNull { it.artist == t.artist } ?: byTitle.firstOrNull()
+    }
+    val isAlbumFav = currentAlbum != null && favAlbums.any { it.matchKey() == currentAlbum.matchKey() }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xl, Alignment.CenterHorizontally),
@@ -360,9 +370,19 @@ private fun ColumnScope.Controls(
         IconButton(onClick = { MusicRepository.toggleTrackFavorite(t) }) {
             Icon(
                 if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = "Favori",
+                contentDescription = "Favori (titre)",
                 tint = tintIf(isFav),
             )
+        }
+        // Favori ALBUM (s'ajoute aux « Albums préférés ») — visible seulement si l'album est en biblio.
+        if (currentAlbum != null) {
+            IconButton(onClick = { currentAlbum?.let { MusicRepository.toggleFavorite(it) } }) {
+                Icon(
+                    if (isAlbumFav) Icons.Filled.LibraryAddCheck else Icons.Filled.LibraryAdd,
+                    contentDescription = "Album favori",
+                    tint = tintIf(isAlbumFav),
+                )
+            }
         }
         IconButton(onClick = { onSetPane(if (pane == PlayerPane.LYRICS) PlayerPane.COVER else PlayerPane.LYRICS) }) {
             Icon(Icons.Filled.Lyrics, "Paroles", tint = tintIf(pane == PlayerPane.LYRICS))
