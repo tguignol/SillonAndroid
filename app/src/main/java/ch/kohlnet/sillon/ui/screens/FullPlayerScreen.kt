@@ -168,7 +168,7 @@ private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, wide: Boolea
                     SpectrumRing(
                         playing = playing,
                         style = style,
-                        color = Sillon.colors.accentCuivre.copy(alpha = 0.55f),
+                        color = Sillon.colors.accentCuivre,
                         accent = Sillon.colors.signalTeal,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -231,17 +231,7 @@ private fun ColumnScope.Controls(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    t.album?.takeIf { it.isNotBlank() }?.let {
-        Text(
-            text = it,
-            style = Sillon.type.corps.copy(fontSize = 13.sp),
-            color = Sillon.colors.texteSourdine,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
+    // (L'album n'est plus répété ici : il figure déjà au-dessus de la liste des titres de l'album.)
 
     Spacer(Modifier.height(Sillon.spacing.l))
 
@@ -320,9 +310,9 @@ private fun ColumnScope.Controls(
         }
     }
 
-    Spacer(Modifier.height(Sillon.spacing.xl))
+    Spacer(Modifier.height(Sillon.spacing.xxl))
 
-    // Volume SOUS le transport, avec plus d'espace au-dessus (volume média système).
+    // Volume SOUS le transport, descendu (plus d'espace au-dessus), volume média système.
     val volume by PlayerController.volume.collectAsState()
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -346,8 +336,8 @@ private fun ColumnScope.Controls(
         }
     }
 
-    // Espace pour descendre les boutons plus bas.
-    Spacer(Modifier.height(Sillon.spacing.xxl))
+    // Boutons (favori/paroles/égaliseur/file) rapprochés du transport et du volume.
+    Spacer(Modifier.height(Sillon.spacing.s))
 
     // Favori (piste courante) + Paroles + File.
     val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()

@@ -13,10 +13,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+/** Modes d'égaliseur (mêmes que l'iOS) : sliders simples / sliders paramétriques / courbe graphique. */
+enum class EQMode { NORMAL, PARAMETRIC, GRAPHIC }
+
 /**
  * État GLOBAL de l'égaliseur (singleton, partagé entre l'UI et le [EqAudioProcessor] — même process).
- * Nombre de bandes RÉGLABLE (6 à 12, comme l'iOS), fréquences log 32 Hz → 16 kHz, gain −12..+12 dB,
- * filtres peaking 1 octave. `generation` est incrémenté à chaque changement → le processeur recalcule.
+ * Trois modes (Normal/Paramétrique/Graphique), nombre de bandes RÉGLABLE (6 à 12), fréquences log
+ * 32 Hz → 16 kHz par défaut mais éditables 20 Hz–20 kHz, gain −12..+12 dB, largeur 0.05–5 oct
+ * (filtres peaking). `generation` est incrémenté à chaque changement → le processeur recalcule.
  */
 object EqualizerState {
     const val MIN_GAIN = -12f
@@ -24,11 +28,19 @@ object EqualizerState {
     const val MIN_BANDS = 6
     const val MAX_BANDS = 12
     const val DEFAULT_BANDS = 8
+    const val MIN_FREQ = 20f
+    const val MAX_FREQ = 20_000f
+    const val MIN_BW = 0.05f      // largeur en OCTAVES
+    const val MAX_BW = 5.0f
+    const val DEFAULT_BW = 1.0f
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val KEY_GAINS = stringPreferencesKey("eqGains")
     private val KEY_ENABLED = stringPreferencesKey("eqEnabled")
     private val KEY_BANDS = stringPreferencesKey("eqBands")
+    private val KEY_FREQS = stringPreferencesKey("eqFreqs")
+    private val KEY_BWS = stringPreferencesKey("eqBws")
+    private val KEY_MODE = stringPreferencesKey("eqMode")
     private var appContext: Context? = null
 
     private val _bandCount = MutableStateFlow(DEFAULT_BANDS)
@@ -37,11 +49,17 @@ object EqualizerState {
     private val _frequencies = MutableStateFlow(computeFreqs(DEFAULT_BANDS))
     val frequencies: StateFlow<FloatArray> = _frequencies.asStateFlow()
 
+    private val _bandwidths = MutableStateFlow(FloatArray(DEFAULT_BANDS) { DEFAULT_BW })
+    val bandwidths: StateFlow<FloatArray> = _bandwidths.asStateFlow()
+
     private val _gains = MutableStateFlow(FloatArray(DEFAULT_BANDS) { 0f })
     val gains: StateFlow<FloatArray> = _gains.asStateFlow()
 
     private val _enabled = MutableStateFlow(false)
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
+
+    private val _mode = MutableStateFlow(EQMode.NORMAL)
+    val mode: StateFlow<EQMode> = _mode.asStateFlow()
 
     /** Incrémenté à chaque changement ; lu (sans verrou) par le processeur audio pour recalculer. */
     @Volatile
@@ -62,10 +80,14 @@ object EqualizerState {
             val prefs = context.applicationContext.dataStore.data.first()
             val n = prefs[KEY_BANDS]?.toIntOrNull()?.coerceIn(MIN_BANDS, MAX_BANDS) ?: DEFAULT_BANDS
             _bandCount.value = n
-            _frequencies.value = computeFreqs(n)
             val g = prefs[KEY_GAINS]?.split(",")?.mapNotNull { it.toFloatOrNull() }
             _gains.value = if (g != null && g.size == n) g.toFloatArray() else FloatArray(n) { 0f }
+            val f = prefs[KEY_FREQS]?.split(",")?.mapNotNull { it.toFloatOrNull() }
+            _frequencies.value = if (f != null && f.size == n) f.toFloatArray() else computeFreqs(n)
+            val bw = prefs[KEY_BWS]?.split(",")?.mapNotNull { it.toFloatOrNull() }
+            _bandwidths.value = if (bw != null && bw.size == n) bw.toFloatArray() else FloatArray(n) { DEFAULT_BW }
             _enabled.value = prefs[KEY_ENABLED] == "1"
+            _mode.value = prefs[KEY_MODE]?.let { runCatching { EQMode.valueOf(it) }.getOrNull() } ?: EQMode.NORMAL
             generation++
         }
     }
@@ -77,18 +99,45 @@ object EqualizerState {
         persist()
     }
 
+    fun setFrequency(band: Int, hz: Float) {
+        if (band !in _frequencies.value.indices) return
+        _frequencies.value = _frequencies.value.copyOf().also { it[band] = hz.coerceIn(MIN_FREQ, MAX_FREQ) }
+        generation++
+        persist()
+    }
+
+    fun setBandwidth(band: Int, octaves: Float) {
+        if (band !in _bandwidths.value.indices) return
+        _bandwidths.value = _bandwidths.value.copyOf().also { it[band] = octaves.coerceIn(MIN_BW, MAX_BW) }
+        generation++
+        persist()
+    }
+
     fun setEnabled(on: Boolean) {
         _enabled.value = on
         generation++
         persist()
     }
 
-    /** Change le nombre de bandes (6–12) ; recalcule les fréquences et remet les gains à plat. */
+    /** Change de mode. En NORMAL on ré-impose les fréquences log par défaut + largeur 1 oct (gains gardés), comme l'iOS. */
+    fun setMode(m: EQMode) {
+        if (m == _mode.value) return
+        _mode.value = m
+        if (m == EQMode.NORMAL) {
+            _frequencies.value = computeFreqs(_bandCount.value)
+            _bandwidths.value = FloatArray(_bandCount.value) { DEFAULT_BW }
+        }
+        generation++
+        persist()
+    }
+
+    /** Change le nombre de bandes (6–12) ; recalcule fréquences/largeurs par défaut et remet les gains à plat. */
     fun setBandCount(n: Int) {
         val c = n.coerceIn(MIN_BANDS, MAX_BANDS)
         if (c == _bandCount.value) return
         _bandCount.value = c
         _frequencies.value = computeFreqs(c)
+        _bandwidths.value = FloatArray(c) { DEFAULT_BW }
         _gains.value = FloatArray(c) { 0f }
         generation++
         persist()
@@ -103,10 +152,20 @@ object EqualizerState {
     private fun persist() {
         val ctx = appContext ?: return
         val gainsStr = _gains.value.joinToString(",")
+        val freqsStr = _frequencies.value.joinToString(",")
+        val bwsStr = _bandwidths.value.joinToString(",")
         val en = if (_enabled.value) "1" else "0"
         val n = _bandCount.value.toString()
+        val modeStr = _mode.value.name
         scope.launch {
-            ctx.dataStore.edit { it[KEY_GAINS] = gainsStr; it[KEY_ENABLED] = en; it[KEY_BANDS] = n }
+            ctx.dataStore.edit {
+                it[KEY_GAINS] = gainsStr
+                it[KEY_FREQS] = freqsStr
+                it[KEY_BWS] = bwsStr
+                it[KEY_ENABLED] = en
+                it[KEY_BANDS] = n
+                it[KEY_MODE] = modeStr
+            }
         }
     }
 

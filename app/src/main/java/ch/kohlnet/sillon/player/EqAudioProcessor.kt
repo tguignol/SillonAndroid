@@ -35,19 +35,27 @@ class EqAudioProcessor : BaseAudioProcessor() {
         return inputAudioFormat
     }
 
+    override fun onFlush() {
+        SpectrumData.reset() // seek / changement de piste → repartir d'un spectre à plat
+    }
+
     private fun recompute() {
         val gains = EqualizerState.gains.value
         val freqs = EqualizerState.frequencies.value
+        val bws = EqualizerState.bandwidths.value
         val n = minOf(gains.size, freqs.size)
         bypass = !EqualizerState.enabled.value
         biquads = Array(channels) { _ ->
-            Array(n) { b -> Biquad.peaking(freqs[b].toDouble(), gains[b].toDouble(), 1.0, sampleRate) }
+            Array(n) { b ->
+                Biquad.peaking(freqs[b].toDouble(), gains[b].toDouble(), bws.getOrElse(b) { 1f }.toDouble(), sampleRate)
+            }
         }
         lastGen = EqualizerState.generation
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         if (EqualizerState.generation != lastGen) recompute()
+        feedSpectrum(inputBuffer) // analyse du son réellement joué (même si l'EQ est désactivé)
         val size = inputBuffer.remaining()
         val output = replaceOutputBuffer(size)
         if (bypass || channels <= 0) {
@@ -63,6 +71,19 @@ class EqAudioProcessor : BaseAudioProcessor() {
             ch = (ch + 1) % channels
         }
         output.flip()
+    }
+
+    /** Lit le PCM (sans le consommer) pour alimenter l'analyseur FFT du visualiseur de spectre. */
+    private fun feedSpectrum(input: ByteBuffer) {
+        if (channels <= 0) return
+        val dup = input.duplicate()
+        dup.order(input.order())
+        val frameBytes = 2 * channels
+        while (dup.remaining() >= frameBytes) {
+            var sum = 0
+            for (c in 0 until channels) sum += dup.short.toInt()
+            SpectrumData.feed((sum / channels) / 32768f)
+        }
     }
 }
 
