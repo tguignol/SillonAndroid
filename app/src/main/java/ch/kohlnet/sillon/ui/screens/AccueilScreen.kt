@@ -26,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -150,31 +149,29 @@ private fun AlbumCarousel(albums: List<Album>, onClick: (Album) -> Unit, onReshu
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
     val thresholdPx = with(density) { 70.dp.toPx() }
-    val resetPx = with(density) { 20.dp.toPx() }
-    var overscroll by remember { mutableFloatStateOf(0f) }
-    var armed by remember { mutableStateOf(true) }
 
-    val connection = remember(onReshuffle, thresholdPx, resetPx) {
+    val connection = remember(onReshuffle, thresholdPx) {
         object : NestedScrollConnection {
+            var overscroll = 0f
+            var peak = 0f
+
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (onReshuffle == null) return Offset.Zero
-                if (available.x != 0f) {
+                // On accumule seulement le débordement (au bord) pendant le glissement, SANS rien déclencher.
+                if (onReshuffle != null && available.x != 0f) {
                     overscroll += available.x
-                    if (armed && abs(overscroll) > thresholdPx) {
-                        armed = false
-                        onReshuffle()
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    }
-                } else if (consumed.x != 0f && abs(overscroll) < resetPx) {
-                    overscroll = 0f
-                    armed = true
+                    peak = maxOf(peak, abs(overscroll))
                 }
                 return Offset.Zero
             }
 
+            // Re-mélange AU LÂCHÉ du doigt (fin du geste), pas pendant le glissement → moins abrupt.
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (onReshuffle != null && peak > thresholdPx) {
+                    onReshuffle()
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
                 overscroll = 0f
-                armed = true
+                peak = 0f
                 return Velocity.Zero
             }
         }
