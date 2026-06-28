@@ -1,0 +1,91 @@
+package ch.kohlnet.sillon.ui.i18n
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import ch.kohlnet.sillon.data.LanguageManager
+
+/**
+ * Chaînes localisées de l'interface (chrome visible) — équivalent des `.strings` iOS résolus par
+ * `LanguageManager.string(key)`. Base = français ; repli sur le français si une traduction manque.
+ * Les 11 langues du sélecteur sont couvertes pour les libellés principaux ; les écrans de détail
+ * migreront progressivement vers ces clés.
+ */
+enum class S {
+    ACCUEIL, BIBLIOTHEQUE, FAVORIS, RECHERCHE, REGLAGES,
+    APPARENCE, SYSTEME, CLAIR, SOMBRE, LANGUE,
+    SERVEURS, AUCUN_SERVEUR, AJOUTER_SERVEUR, ADRESSE_SERVEUR, UTILISATEUR, MOT_DE_PASSE, AJOUTER,
+    CONNEXION_EN_COURS, AJOUTE,
+    ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
+    BIBLIOTHEQUE_VIDE, AUCUN_FAVORI,
+}
+
+/** Construit la table d'une clé : fr est obligatoire (base), les autres sont optionnelles. */
+private fun tr(
+    fr: String, en: String, de: String, it: String, es: String,
+    pt: String, sq: String, sr: String, rm: String, tr: String,
+) = mapOf(
+    "fr" to fr, "en" to en, "de" to de, "it" to it, "es" to es,
+    "pt" to pt, "sq" to sq, "sr" to sr, "rm" to rm, "tr" to tr,
+)
+
+private val TABLE: Map<S, Map<String, String>> = mapOf(
+    S.ACCUEIL to tr("Accueil", "Home", "Startseite", "Home", "Inicio", "Início", "Kreu", "Početna", "Partenza", "Ana sayfa"),
+    S.BIBLIOTHEQUE to tr("Bibliothèque", "Library", "Mediathek", "Libreria", "Biblioteca", "Biblioteca", "Biblioteka", "Biblioteka", "Biblioteca", "Kitaplık"),
+    S.FAVORIS to tr("Favoris", "Favorites", "Favoriten", "Preferiti", "Favoritos", "Favoritos", "Të preferuarat", "Omiljeno", "Preferids", "Favoriler"),
+    S.RECHERCHE to tr("Recherche", "Search", "Suche", "Cerca", "Buscar", "Pesquisar", "Kërko", "Pretraga", "Tschertgar", "Ara"),
+    S.REGLAGES to tr("Réglages", "Settings", "Einstellungen", "Impostazioni", "Ajustes", "Definições", "Cilësimet", "Podešavanja", "Parameters", "Ayarlar"),
+    S.APPARENCE to tr("Apparence", "Appearance", "Erscheinungsbild", "Aspetto", "Apariencia", "Aparência", "Pamja", "Izgled", "Apparientscha", "Görünüm"),
+    S.SYSTEME to tr("Système", "System", "System", "Sistema", "Sistema", "Sistema", "Sistemi", "Sistem", "Sistem", "Sistem"),
+    S.CLAIR to tr("Clair", "Light", "Hell", "Chiaro", "Claro", "Claro", "E çelët", "Svetlo", "Cler", "Açık"),
+    S.SOMBRE to tr("Sombre", "Dark", "Dunkel", "Scuro", "Oscuro", "Escuro", "E errët", "Tamno", "Stgir", "Koyu"),
+    S.LANGUE to tr("Langue", "Language", "Sprache", "Lingua", "Idioma", "Idioma", "Gjuha", "Jezik", "Lingua", "Dil"),
+    S.SERVEURS to tr("Serveurs", "Servers", "Server", "Server", "Servidores", "Servidores", "Serverë", "Serveri", "Servers", "Sunucular"),
+    S.AUCUN_SERVEUR to tr("Aucun serveur.", "No server.", "Kein Server.", "Nessun server.", "Ningún servidor.", "Nenhum servidor.", "Asnjë server.", "Nema servera.", "Nagin server.", "Sunucu yok."),
+    S.AJOUTER_SERVEUR to tr("Ajouter un serveur", "Add a server", "Server hinzufügen", "Aggiungi un server", "Añadir un servidor", "Adicionar um servidor", "Shto një server", "Dodaj server", "Agiuntar in server", "Sunucu ekle"),
+    S.ADRESSE_SERVEUR to tr("Adresse du serveur", "Server address", "Serveradresse", "Indirizzo del server", "Dirección del servidor", "Endereço do servidor", "Adresa e serverit", "Adresa servera", "Adressa dal server", "Sunucu adresi"),
+    S.UTILISATEUR to tr("Utilisateur", "Username", "Benutzername", "Nome utente", "Usuario", "Utilizador", "Përdoruesi", "Korisničko ime", "Num d'utilisader", "Kullanıcı adı"),
+    S.MOT_DE_PASSE to tr("Mot de passe", "Password", "Passwort", "Password", "Contraseña", "Palavra-passe", "Fjalëkalimi", "Lozinka", "Pled-clav", "Parola"),
+    S.AJOUTER to tr("Ajouter", "Add", "Hinzufügen", "Aggiungi", "Añadir", "Adicionar", "Shto", "Dodaj", "Agiuntar", "Ekle"),
+    S.CONNEXION_EN_COURS to tr("Connexion…", "Connecting…", "Verbinden…", "Connessione…", "Conectando…", "A ligar…", "Po lidhet…", "Povezivanje…", "Connexiun…", "Bağlanıyor…"),
+    S.AJOUTE to tr("Ajouté", "Added", "Hinzugefügt", "Aggiunto", "Añadido", "Adicionado", "U shtua", "Dodato", "Agiuntà", "Eklendi"),
+    S.ALBUMS_RECENTS to tr("Albums récents", "Recent albums", "Neueste Alben", "Album recenti", "Álbumes recientes", "Álbuns recentes", "Albumet e fundit", "Najnoviji albumi", "Albums novs", "Son albümler"),
+    S.ALBUMS_PREFERES to tr("Albums préférés", "Favorite albums", "Lieblingsalben", "Album preferiti", "Álbumes favoritos", "Álbuns favoritos", "Albumet e preferuara", "Omiljeni albumi", "Albums preferids", "Favori albümler"),
+    S.ALBUMS_ALEATOIRES to tr("Albums aléatoires", "Random albums", "Zufällige Alben", "Album casuali", "Álbumes aleatorios", "Álbuns aleatórios", "Albume të rastësishme", "Nasumični albumi", "Albums casuals", "Rastgele albümler"),
+    S.REDECOUVRIR to tr("Redécouvrir des albums", "Rediscover albums", "Alben wiederentdecken", "Riscopri album", "Redescubrir álbumes", "Redescobrir álbuns", "Rizbulo albume", "Ponovo otkrij albume", "Redescovrir albums", "Albümleri yeniden keşfet"),
+    S.BIBLIOTHEQUE_VIDE to tr(
+        "Aucun album.\nConnecte-toi à un serveur dans Réglages.",
+        "No albums.\nConnect to a server in Settings.",
+        "Keine Alben.\nVerbinde dich in den Einstellungen mit einem Server.",
+        "Nessun album.\nConnettiti a un server nelle Impostazioni.",
+        "Ningún álbum.\nConéctate a un servidor en Ajustes.",
+        "Nenhum álbum.\nLiga-te a um servidor nas Definições.",
+        "Asnjë album.\nLidhu me një server te Cilësimet.",
+        "Nema albuma.\nPoveži se sa serverom u Podešavanjima.",
+        "Nagins albums.\nConnectescha tai cun in server en ils parameters.",
+        "Albüm yok.\nAyarlar'dan bir sunucuya bağlan.",
+    ),
+    S.AUCUN_FAVORI to tr(
+        "Aucun favori.\nTouche le cœur sur un album.",
+        "No favorites.\nTap the heart on an album.",
+        "Keine Favoriten.\nTippe auf das Herz eines Albums.",
+        "Nessun preferito.\nTocca il cuore su un album.",
+        "Ningún favorito.\nToca el corazón en un álbum.",
+        "Nenhum favorito.\nToca no coração de um álbum.",
+        "Asnjë i preferuar.\nPrek zemrën te një album.",
+        "Nema omiljenih.\nDodirni srce na albumu.",
+        "Nagins preferids.\nTutga sin il cor d'in album.",
+        "Favori yok.\nBir albümdeki kalbe dokun.",
+    ),
+)
+
+/** Résolution non-composable (pour usages hors composition). */
+fun localized(key: S, code: String): String =
+    TABLE[key]?.let { it[code] ?: it["fr"] } ?: key.name
+
+/** Chaîne localisée selon la langue courante ; se recompose au changement de langue. */
+@Composable
+fun str(key: S): String {
+    val lang by LanguageManager.current.collectAsState()
+    return localized(key, LanguageManager.resolvedCode(lang))
+}

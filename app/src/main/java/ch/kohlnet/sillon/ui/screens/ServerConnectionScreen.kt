@@ -1,6 +1,8 @@
 package ch.kohlnet.sillon.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,12 +13,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,22 +39,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import ch.kohlnet.sillon.data.AppLanguage
 import ch.kohlnet.sillon.data.AppSettings
 import ch.kohlnet.sillon.data.AppearanceMode
 import ch.kohlnet.sillon.data.ConnectionStatus
+import ch.kohlnet.sillon.data.LanguageManager
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.ServerConfig
 import ch.kohlnet.sillon.data.ServerType
+import ch.kohlnet.sillon.ui.components.ServerMark
+import ch.kohlnet.sillon.ui.i18n.S
+import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.theme.Sillon
 
-/** Réglages : apparence + gestion MULTI-SERVEUR (liste de serveurs + ajout avec type). */
+/** Réglages : apparence + LANGUE + gestion MULTI-SERVEUR (liste avec icônes + ajout). */
 @Composable
 fun ServerConnectionScreen() {
     val appearance by AppSettings.appearance.collectAsState()
@@ -68,26 +83,35 @@ fun ServerConnectionScreen() {
             .padding(top = Sillon.spacing.l, bottom = Sillon.spacing.xxl),
         verticalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
     ) {
-        Text("Réglages", style = Sillon.type.display, color = Sillon.colors.texteIvoire)
+        Text(str(S.REGLAGES), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
 
         // — Apparence —
-        Text("Apparence", style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        Text(str(S.APPARENCE), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             AppearanceMode.entries.forEachIndexed { i, mode ->
+                val label = when (mode) {
+                    AppearanceMode.SYSTEM -> str(S.SYSTEME)
+                    AppearanceMode.LIGHT -> str(S.CLAIR)
+                    AppearanceMode.DARK -> str(S.SOMBRE)
+                }
                 SegmentedButton(
                     selected = appearance == mode,
                     onClick = { AppSettings.setAppearance(mode) },
                     shape = SegmentedButtonDefaults.itemShape(i, AppearanceMode.entries.size),
-                ) { Text(mode.label, style = Sillon.type.corps) }
+                ) { Text(label, style = Sillon.type.corps) }
             }
         }
+
+        // — Langue —
+        Text(str(S.LANGUE), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        LanguagePicker()
 
         Spacer(Modifier.height(Sillon.spacing.s))
 
         // — Serveurs configurés —
-        Text("Serveurs", style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        Text(str(S.SERVEURS), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
         if (servers.isEmpty()) {
-            Text("Aucun serveur.", style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+            Text(str(S.AUCUN_SERVEUR), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
         } else {
             servers.forEach { server -> ServerRow(server) }
         }
@@ -95,7 +119,7 @@ fun ServerConnectionScreen() {
         Spacer(Modifier.height(Sillon.spacing.s))
 
         // — Ajouter un serveur —
-        Text("Ajouter un serveur", style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        Text(str(S.AJOUTER_SERVEUR), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             ServerType.entries.forEachIndexed { i, t ->
                 SegmentedButton(
@@ -107,7 +131,7 @@ fun ServerConnectionScreen() {
         }
         OutlinedTextField(
             value = url, onValueChange = { url = it },
-            label = { Text("Adresse du serveur") },
+            label = { Text(str(S.ADRESSE_SERVEUR)) },
             placeholder = { Text("https://exemple:8096") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -115,12 +139,12 @@ fun ServerConnectionScreen() {
         )
         OutlinedTextField(
             value = user, onValueChange = { user = it },
-            label = { Text("Utilisateur") }, singleLine = true,
+            label = { Text(str(S.UTILISATEUR)) }, singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = password, onValueChange = { password = it },
-            label = { Text("Mot de passe") }, singleLine = true,
+            label = { Text(str(S.MOT_DE_PASSE)) }, singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             modifier = Modifier.fillMaxWidth(),
@@ -131,7 +155,7 @@ fun ServerConnectionScreen() {
                 url = ""; user = ""; password = ""
             },
             enabled = !connecting && url.isNotBlank() && user.isNotBlank(),
-        ) { Text("Ajouter", style = Sillon.type.corps) }
+        ) { Text(str(S.AJOUTER), style = Sillon.type.corps) }
 
         when (val s = status) {
             is ConnectionStatus.Connecting -> Row(
@@ -139,15 +163,49 @@ fun ServerConnectionScreen() {
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
             ) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                Text("Connexion…", style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+                Text(str(S.CONNEXION_EN_COURS), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
             }
             is ConnectionStatus.Connected -> Text(
-                "Ajouté : ${s.name}", style = Sillon.type.corps, color = Sillon.colors.signalTeal,
+                "${str(S.AJOUTE)} : ${s.name}", style = Sillon.type.corps, color = Sillon.colors.signalTeal,
             )
             is ConnectionStatus.Error -> Text(
                 s.message, style = Sillon.type.corps, color = MaterialTheme.colorScheme.error,
             )
             ConnectionStatus.Idle -> {}
+        }
+    }
+}
+
+/** Sélecteur de langue (11 langues, comme iOS) : ligne cliquable + menu déroulant. */
+@Composable
+private fun LanguagePicker() {
+    val lang by LanguageManager.current.collectAsState()
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+                .clickable { expanded = true }
+                .padding(vertical = Sillon.spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+        ) {
+            Icon(Icons.Filled.Language, contentDescription = null, tint = Sillon.colors.texteSourdine)
+            Text(lang.displayName, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Sillon.colors.texteSourdine)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            AppLanguage.entries.forEach { l ->
+                DropdownMenuItem(
+                    text = { Text(l.displayName, style = Sillon.type.corps) },
+                    onClick = { LanguageManager.setLanguage(l); expanded = false },
+                    trailingIcon = {
+                        if (l == lang) Icon(Icons.Filled.Check, contentDescription = null, tint = Sillon.colors.accentCuivre)
+                    },
+                )
+            }
         }
     }
 }
@@ -159,6 +217,7 @@ private fun ServerRow(server: ServerConfig) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
     ) {
+        ServerMark(server.type, Modifier.size(26.dp))
         Column(Modifier.weight(1f)) {
             Text(server.name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire)
             Text(server.baseUrl, style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
