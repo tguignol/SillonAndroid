@@ -48,6 +48,8 @@ data class JellyfinItem(
     @SerialName("Id") val id: String,
     @SerialName("Name") val name: String,
     @SerialName("AlbumArtist") val albumArtist: String? = null,
+    @SerialName("ProductionYear") val productionYear: Int? = null,
+    @SerialName("Genres") val genres: List<String>? = null,
 )
 
 @Serializable
@@ -138,7 +140,7 @@ class JellyfinClient(baseUrl: String) {
                 parameter("SortOrder", "Descending")
                 parameter("StartIndex", start.toString())
                 parameter("Limit", pageSize.toString())
-                parameter("Fields", "AlbumArtist")
+                parameter("Fields", "AlbumArtist,Genres,ProductionYear")
                 parameter("EnableImages", "false")     // allège la réponse → chargement plus rapide
                 parameter("EnableUserData", "false")
             }.body<ItemsResponse>()
@@ -161,7 +163,7 @@ class JellyfinClient(baseUrl: String) {
             parameter("IncludeItemTypes", "MusicAlbum")
             parameter("Recursive", "true")
             parameter("Limit", limit.toString())
-            parameter("Fields", "AlbumArtist")
+            parameter("Fields", "AlbumArtist,Genres,ProductionYear")
         }.body<ItemsResponse>().items
 
     /** Recherche d'artistes par terme. */
@@ -183,7 +185,7 @@ class JellyfinClient(baseUrl: String) {
             parameter("Recursive", "true")
             parameter("SortBy", "ProductionYear,SortName")
             parameter("Limit", limit.toString())
-            parameter("Fields", "AlbumArtist")
+            parameter("Fields", "AlbumArtist,Genres,ProductionYear")
         }.body<ItemsResponse>().items
 
     /** Morceaux d'un album, dans l'ordre des pistes. */

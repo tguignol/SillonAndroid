@@ -31,9 +31,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -76,6 +80,7 @@ import ch.kohlnet.sillon.ui.components.SourceBadge
 import ch.kohlnet.sillon.ui.components.azSortKey
 import ch.kohlnet.sillon.ui.components.azTargetIndex
 import ch.kohlnet.sillon.ui.components.indexLetter
+import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
 import ch.kohlnet.sillon.ui.components.lazyGridScrollbar
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
@@ -104,11 +109,21 @@ fun AccueilScreen() {
     val stats by PlayHistory.stats.collectAsState()
     val servers by MusicRepository.servers.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
+    var seeAll by remember { mutableStateOf<SeeAll?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
 
     val sel = selected
     if (sel != null) {
         AlbumDetailScreen(sel, onBack = { selected = null })
+        return
+    }
+    // « Voir tout » d'une section → vue plein écran type bibliothèque (l'album ouvert prime, cf. plus haut).
+    val sa = seeAll
+    if (sa != null) {
+        when (sa) {
+            is SeeAll.Albums -> SeeAllAlbumsScreen(sa.title, sa.items, onBack = { seeAll = null }) { selected = it }
+            is SeeAll.Tracks -> SeeAllTracksScreen(sa.title, sa.items, onBack = { seeAll = null })
+        }
         return
     }
 
@@ -117,12 +132,12 @@ fun AccueilScreen() {
     var redecouvrir by remember(albums) { mutableStateOf(albums.shuffled().take(15)) }
     val onClick: (Album) -> Unit = { selected = it }
 
-    // Sections « écoutes » dérivées de l'historique, filtrées aux serveurs ACTIFS.
+    // Sections « écoutes » dérivées de l'historique, filtrées aux serveurs ACTIFS (listes COMPLÈTES ;
+    // les carrousels en prennent un sous-ensemble, le « voir tout » affiche tout).
     val mostPlayedTracks = remember(stats, servers) {
         val activeIds = servers.filter { it.active }.map { it.id }.toSet()
         stats.filter { it.count > 0 && it.serverId in activeIds }
             .sortedByDescending { it.count }
-            .take(15)
             .map { it.toTrack() }
     }
     // Albums reliés à l'historique → résolus dans la bibliothèque ACTIVE par TITRE normalisé (l'artiste
@@ -134,7 +149,6 @@ fun AccueilScreen() {
             .mapNotNull { (k, v) -> albumsByTitle[k]?.firstOrNull()?.let { it to v.maxOf { s -> s.lastPlayedAt } } }
             .sortedByDescending { it.second }
             .map { it.first }
-            .take(15)
     }
     val mostPlayedAlbums = remember(stats, albumsByTitle) {
         stats.filter { it.album.isNotBlank() }
@@ -142,7 +156,6 @@ fun AccueilScreen() {
             .mapNotNull { (k, v) -> albumsByTitle[k]?.firstOrNull()?.let { it to v.sumOf { s -> s.count } } }
             .sortedByDescending { it.second }
             .map { it.first }
-            .take(15)
     }
 
     Column(
@@ -163,17 +176,27 @@ fun AccueilScreen() {
         if (albums.isEmpty()) {
             if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else {
-            Section(str(S.ALBUMS_RECENTS)) { AlbumCarousel(albums.take(30), onClick) }
+            val tRecents = str(S.ALBUMS_RECENTS)
+            Section(tRecents, onSeeAll = { seeAll = SeeAll.Albums(tRecents, albums) }) {
+                AlbumCarousel(albums.take(30), onClick)
+            }
             if (mostPlayedTracks.isNotEmpty()) {
-                Section(str(S.TITRES_PLUS_ECOUTES)) {
-                    TrackCarousel(mostPlayedTracks) { i -> PlayerController.play(mostPlayedTracks, i) }
+                val t = str(S.TITRES_PLUS_ECOUTES)
+                Section(t, onSeeAll = { seeAll = SeeAll.Tracks(t, mostPlayedTracks) }) {
+                    TrackCarousel(mostPlayedTracks.take(15)) { i -> PlayerController.play(mostPlayedTracks, i) }
                 }
             }
             if (recentlyPlayedAlbums.isNotEmpty()) {
-                Section(str(S.ALBUMS_RECEMMENT)) { AlbumCarousel(recentlyPlayedAlbums, onClick) }
+                val t = str(S.ALBUMS_RECEMMENT)
+                Section(t, onSeeAll = { seeAll = SeeAll.Albums(t, recentlyPlayedAlbums) }) {
+                    AlbumCarousel(recentlyPlayedAlbums.take(15), onClick)
+                }
             }
             if (mostPlayedAlbums.isNotEmpty()) {
-                Section(str(S.PLUS_ECOUTES)) { AlbumCarousel(mostPlayedAlbums, onClick) }
+                val t = str(S.PLUS_ECOUTES)
+                Section(t, onSeeAll = { seeAll = SeeAll.Albums(t, mostPlayedAlbums) }) {
+                    AlbumCarousel(mostPlayedAlbums.take(15), onClick)
+                }
             }
             if (favorites.isNotEmpty()) {
                 Section(str(S.ALBUMS_PREFERES)) { AlbumCarousel(favorites, onClick) }
@@ -201,6 +224,7 @@ fun BibliothequeScreen() {
     val servers by MusicRepository.servers.collectAsState()
     var mode by rememberSaveable { mutableStateOf(LibraryMode.ALBUMS) }
     var ascending by rememberSaveable { mutableStateOf(true) } // tri A→Z (vrai) / Z→A
+    var browse by remember { mutableStateOf(false) } // « Parcourir » (genre / décennie)
     var selectedAlbum by remember { mutableStateOf<Album?>(null) }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     val gridState = rememberLazyGridState()   // hissés → survivent à l'ouverture d'un détail
@@ -212,6 +236,9 @@ fun BibliothequeScreen() {
     }
     selectedArtist?.let {
         ArtistDetailScreen(it, onBack = { selectedArtist = null }); return
+    }
+    if (browse) {
+        BrowseScreen(onBack = { browse = false }); return
     }
 
     val sortedAlbums = remember(albums, ascending) {
@@ -241,6 +268,9 @@ fun BibliothequeScreen() {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(text = str(S.BIBLIOTHEQUE), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
             Spacer(Modifier.weight(1f))
+            IconButton(onClick = { browse = true }) {
+                Icon(Icons.Filled.Category, contentDescription = "Parcourir (genre / décennie)", tint = Sillon.colors.texteSourdine)
+            }
             SortToggle(ascending) { ascending = !ascending }
         }
         Spacer(Modifier.height(Sillon.spacing.m))
@@ -400,16 +430,30 @@ fun FavorisScreen() {
     AlbumGridScreen(str(S.FAVORIS), favorites, str(S.AUCUN_FAVORI), loading = false)
 }
 
-/** En-tête de section + contenu (carrousel). */
+/** En-tête de section + contenu (carrousel). `onSeeAll` non nul → flèche « voir tout » à droite du titre. */
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(title: String, onSeeAll: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.m)) {
-        Text(
-            text = title,
-            style = Sillon.type.displaySmall,
-            color = Sillon.colors.texteSourdine,
-            modifier = Modifier.padding(horizontal = Sillon.spacing.xl),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.xl),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = Sillon.type.displaySmall,
+                color = Sillon.colors.texteSourdine,
+                modifier = Modifier.weight(1f),
+            )
+            if (onSeeAll != null) {
+                IconButton(onClick = onSeeAll, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Voir tout",
+                        tint = Sillon.colors.texteSourdine,
+                    )
+                }
+            }
+        }
         content()
     }
 }
@@ -621,6 +665,127 @@ private fun AlbumCard(album: Album, modifier: Modifier = Modifier, onClick: () -
             )
         }
     }
+}
+
+/** Cible d'un « voir tout » de section : une grille d'albums ou une liste de titres. */
+private sealed interface SeeAll {
+    val title: String
+    data class Albums(override val title: String, val items: List<Album>) : SeeAll
+    data class Tracks(override val title: String, val items: List<Track>) : SeeAll
+}
+
+/** En-tête « retour + titre » des vues plein écran « voir tout ». */
+@Composable
+private fun SeeAllHeader(title: String, onBack: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Sillon.colors.texteIvoire)
+        }
+        Text(
+            title,
+            style = Sillon.type.display,
+            color = Sillon.colors.texteIvoire,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** « Voir tout » → grille d'albums (même design que la bibliothèque), dans l'ordre de la section. */
+@Composable
+private fun SeeAllAlbumsScreen(title: String, albums: List<Album>, onBack: () -> Unit, onClick: (Album) -> Unit) {
+    val gridState = rememberLazyGridState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = Sillon.spacing.xl)
+            .padding(top = Sillon.spacing.l),
+    ) {
+        SeeAllHeader(title, onBack)
+        Spacer(Modifier.height(Sillon.spacing.m))
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(CARD),
+            state = gridState,
+            modifier = Modifier.fillMaxSize().lazyGridScrollbar(gridState, Sillon.colors.texteSourdine),
+            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+            verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
+            contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+        ) {
+            items(albums, key = { it.id }) { album -> AlbumCard(album) { onClick(album) } }
+        }
+    }
+}
+
+/** « Voir tout » → liste de titres (pochette + titre + artiste + format + durée), tap = lecture. */
+@Composable
+private fun SeeAllTracksScreen(title: String, tracks: List<Track>, onBack: () -> Unit) {
+    val listState = rememberLazyListState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = Sillon.spacing.xl)
+            .padding(top = Sillon.spacing.l),
+    ) {
+        SeeAllHeader(title, onBack)
+        Spacer(Modifier.height(Sillon.spacing.m))
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
+            contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+        ) {
+            lazyRowItemsIndexed(tracks, key = { _, t -> t.serverId + "/" + t.id }) { i, track ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { PlayerController.play(tracks, i) }
+                        .padding(vertical = Sillon.spacing.s),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+                ) {
+                    AsyncImage(
+                        model = track.coverUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(Sillon.spacing.xs))
+                            .background(placeholderBrush(track.title.ifBlank { track.id })),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            track.title,
+                            style = Sillon.type.corps,
+                            color = Sillon.colors.texteIvoire,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (track.artist.isNotBlank()) {
+                            Text(
+                                track.artist,
+                                style = Sillon.type.corps.copy(fontSize = 13.sp),
+                                color = Sillon.colors.texteSourdine,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    track.formatLabel()?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = Sillon.type.technique.copy(fontSize = 10.sp), color = Sillon.colors.signalTeal, maxLines = 1)
+                    }
+                    track.durationMs?.let {
+                        Text(seeAllDuration(it), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun seeAllDuration(ms: Long): String {
+    val s = ms / 1000
+    return "%d:%02d".format(s / 60, s % 60)
 }
 
 @Composable

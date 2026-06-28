@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
@@ -156,6 +157,15 @@ private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        // Type d'encodage (FLAC / ALAC / WAV…) en vert, comme ailleurs.
+        track.formatLabel()?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                text = it,
+                style = Sillon.type.technique.copy(fontSize = 10.sp),
+                color = Sillon.colors.signalTeal,
+                maxLines = 1,
+            )
+        }
         track.durationMs?.let {
             Text(
                 text = formatDuration(it),

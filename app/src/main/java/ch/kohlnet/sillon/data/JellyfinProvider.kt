@@ -66,7 +66,10 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
     override fun close() = client.close()
 
     private fun toAlbum(item: JellyfinItem) =
-        Album(item.id, item.name, item.albumArtist.orEmpty(), client.coverUrl(item.id, token), config.id)
+        Album(
+            item.id, item.name, item.albumArtist.orEmpty(), client.coverUrl(item.id, token), config.id,
+            year = item.productionYear, genre = item.genres?.firstOrNull()?.takeIf { it.isNotBlank() },
+        )
 
     companion object {
         suspend fun authenticate(id: String, url: String, username: String, password: String): ServerConfig {

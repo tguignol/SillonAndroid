@@ -31,7 +31,7 @@ data class SubResponse(
 
 @Serializable data class SubAlbumList(val album: List<SubAlbumItem> = emptyList())
 @Serializable data class SubSearchResult(val album: List<SubAlbumItem> = emptyList(), val artist: List<SubArtistItem> = emptyList())
-@Serializable data class SubAlbumItem(val id: String, val name: String = "", val artist: String = "", val coverArt: String? = null)
+@Serializable data class SubAlbumItem(val id: String, val name: String = "", val artist: String = "", val coverArt: String? = null, val year: Int? = null, val genre: String? = null)
 @Serializable data class SubArtistItem(val id: String, val name: String = "")
 @Serializable data class SubArtist(val id: String = "", val name: String = "", val album: List<SubAlbumItem> = emptyList())
 @Serializable data class SubAlbum(val id: String = "", val song: List<SubSong> = emptyList())
@@ -169,7 +169,7 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
     override fun close() = http.close()
 
     private fun toAlbum(a: SubAlbumItem) =
-        Album(a.id, a.name, a.artist, coverUrl(a.coverArt ?: a.id), config.id)
+        Album(a.id, a.name, a.artist, coverUrl(a.coverArt ?: a.id), config.id, year = a.year, genre = a.genre)
 
     companion object {
         private fun generateSalt(): String {

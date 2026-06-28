@@ -33,6 +33,8 @@ data class Album(
     val coverUrl: String?,
     val serverId: String = "",
     val sources: List<String> = emptyList(),
+    val year: Int? = null,
+    val genre: String? = null,
 ) {
     /** Clé de correspondance inter-serveurs (dédup + favoris propagés) : titre+artiste normalisés. */
     fun matchKey(): String = (title + " " + artist).trim().lowercase().replace(Regex("\\s+"), " ")
@@ -451,7 +453,11 @@ object MusicRepository {
             groups.getOrPut(key) { mutableListOf() }.add(a)
         }
         return groups.values.map { group ->
-            group.first().copy(sources = group.map { it.serverId }.distinct())
+            group.first().copy(
+                sources = group.map { it.serverId }.distinct(),
+                year = group.firstNotNullOfOrNull { it.year },
+                genre = group.firstNotNullOfOrNull { it.genre?.takeIf { g -> g.isNotBlank() } },
+            )
         }
     }
 
