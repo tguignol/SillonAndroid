@@ -17,7 +17,7 @@ enum class S {
     SERVEURS, RAFRAICHIR, PRIORITE_HINT, AUCUN_SERVEUR, AJOUTER_SERVEUR, ADRESSE_SERVEUR, UTILISATEUR, MOT_DE_PASSE, AJOUTER,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
-    BIBLIOTHEQUE_VIDE, AUCUN_FAVORI,
+    BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT,
     OUT_BLUETOOTH, OUT_WIRED, OUT_SPEAKER,
 }
 
@@ -79,6 +79,7 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
         "Nagins albums.\nConnectescha tai cun in server en ils parameters.",
         "Albüm yok.\nAyarlar'dan bir sunucuya bağlan.",
     ),
+    S.CHARGEMENT to tr("Chargement…", "Loading…", "Wird geladen…", "Caricamento…", "Cargando…", "A carregar…", "Po ngarkohet…", "Učitavanje…", "Chargiar…", "Yükleniyor…"),
     S.OUT_BLUETOOTH to tr("Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth"),
     S.OUT_WIRED to tr("Casque", "Headphones", "Kopfhörer", "Cuffie", "Auriculares", "Auscultadores", "Kufje", "Slušalice", "Cufftgas", "Kulaklık"),
     S.OUT_SPEAKER to tr("Haut-parleur", "Speaker", "Lautsprecher", "Altoparlante", "Altavoz", "Altifalante", "Altoparlant", "Zvučnik", "Plicontrol", "Hoparlör"),

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -66,6 +67,7 @@ private val CARD = 150.dp
 fun AccueilScreen() {
     val albums by MusicRepository.albums.collectAsState()
     val favorites by MusicRepository.favorites.collectAsState()
+    val loading by MusicRepository.loading.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
 
@@ -96,7 +98,7 @@ fun AccueilScreen() {
         )
 
         if (albums.isEmpty()) {
-            EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
+            if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else {
             Section(str(S.ALBUMS_RECENTS)) { AlbumCarousel(albums.take(30), onClick) }
             if (favorites.isNotEmpty()) {
@@ -115,13 +117,14 @@ fun AccueilScreen() {
 @Composable
 fun BibliothequeScreen() {
     val albums by MusicRepository.albums.collectAsState()
-    AlbumGridScreen(str(S.BIBLIOTHEQUE), albums, str(S.BIBLIOTHEQUE_VIDE))
+    val loading by MusicRepository.loading.collectAsState()
+    AlbumGridScreen(str(S.BIBLIOTHEQUE), albums, str(S.BIBLIOTHEQUE_VIDE), loading)
 }
 
 @Composable
 fun FavorisScreen() {
     val favorites by MusicRepository.favorites.collectAsState()
-    AlbumGridScreen(str(S.FAVORIS), favorites, str(S.AUCUN_FAVORI))
+    AlbumGridScreen(str(S.FAVORIS), favorites, str(S.AUCUN_FAVORI), loading = false)
 }
 
 /** En-tête de section + contenu (carrousel). */
@@ -189,7 +192,7 @@ private fun AlbumCarousel(albums: List<Album>, onClick: (Album) -> Unit, onReshu
 }
 
 @Composable
-private fun AlbumGridScreen(title: String, albums: List<Album>, emptyText: String) {
+private fun AlbumGridScreen(title: String, albums: List<Album>, emptyText: String, loading: Boolean) {
     var selected by remember { mutableStateOf<Album?>(null) }
     val gridState = rememberLazyGridState() // hissé → la position survit à l'ouverture d'un album
     val sel = selected
@@ -207,7 +210,7 @@ private fun AlbumGridScreen(title: String, albums: List<Album>, emptyText: Strin
     ) {
         Text(text = title, style = Sillon.type.display, color = Sillon.colors.texteIvoire)
         if (albums.isEmpty()) {
-            EmptyHint(emptyText)
+            if (loading) LoadingHint() else EmptyHint(emptyText)
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(CARD),
@@ -291,6 +294,20 @@ private fun AlbumCard(album: Album, modifier: Modifier = Modifier, onClick: () -
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun LoadingHint() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Sillon.spacing.xl, vertical = 64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
+    ) {
+        CircularProgressIndicator(color = Sillon.colors.accentCuivre)
+        Text(str(S.CHARGEMENT), style = Sillon.type.corps, color = Sillon.colors.texteSourdine, textAlign = TextAlign.Center)
     }
 }
 

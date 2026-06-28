@@ -7,6 +7,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -113,6 +116,10 @@ object MusicRepository {
 
     private val _albums = MutableStateFlow<List<Album>>(emptyList())
     val albums: StateFlow<List<Album>> = _albums.asStateFlow()
+
+    /** Vrai pendant le chargement de la bibliothèque (affiche un indicateur au lieu de « Aucun album »). */
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
@@ -244,7 +251,12 @@ object MusicRepository {
 
     /** Recharge TOUTE la bibliothèque agrégée de tous les serveurs actifs (paginée). */
     suspend fun loadAlbums() {
-        _albums.value = aggregate { it.allAlbums() }
+        _loading.value = true
+        try {
+            _albums.value = aggregate { it.allAlbums() }
+        } finally {
+            _loading.value = false
+        }
     }
 
     /** Rechargement GLOBAL (bouton « Rafraîchir ») : recrée les providers actifs et relit la bibliothèque. */
@@ -295,13 +307,12 @@ object MusicRepository {
      * fusionne et DÉDOUBLONNE inter-serveurs. La dédup garde le 1er rencontré → le serveur le plus haut
      * dans la liste gagne sur les doublons (cf. [moveServer]).
      */
-    private suspend fun aggregate(block: suspend (ServerProvider) -> List<Album>): List<Album> {
+    private suspend fun aggregate(block: suspend (ServerProvider) -> List<Album>): List<Album> = coroutineScope {
         val ordered = _servers.value.filter { it.active }.mapNotNull { providers[it.id] }
-        val result = mutableListOf<Album>()
-        for (p in ordered) {
-            result += runCatching { block(p) }.getOrDefault(emptyList())
-        }
-        return dedup(result)
+        // Serveurs interrogés EN PARALLÈLE (overlap des temps réseau) ; l'ordre de la liste est
+        // préservé (map→async→awaitAll) → la dédup garde toujours le serveur prioritaire.
+        val results = ordered.map { p -> async { runCatching { block(p) }.getOrDefault(emptyList()) } }.awaitAll()
+        dedup(results.flatten())
     }
 
     /**
