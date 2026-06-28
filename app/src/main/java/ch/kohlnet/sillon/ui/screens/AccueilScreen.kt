@@ -213,7 +213,10 @@ fun AccueilScreen() {
                 }
             }
             if (favorites.isNotEmpty()) {
-                Section(str(S.ALBUMS_PREFERES)) { AlbumCarousel(favorites, onClick) }
+                val t = str(S.ALBUMS_PREFERES)
+                Section(t, onSeeAll = { seeAll = SeeAll.Albums(t, favorites) }) {
+                    AlbumCarousel(favorites, onClick)
+                }
             }
             Section(str(S.ALBUMS_ALEATOIRES)) {
                 AlbumCarousel(aleatoires, onClick, onReshuffle = { aleatoires = albums.shuffled().take(15) })
