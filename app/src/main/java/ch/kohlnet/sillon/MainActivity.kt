@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import ch.kohlnet.sillon.data.AppSettings
 import ch.kohlnet.sillon.data.AppearanceMode
+import ch.kohlnet.sillon.data.EqualizerState
 import ch.kohlnet.sillon.data.LanguageManager
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.player.AudioOutputMonitor
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
         AppSettings.init(applicationContext)
         LanguageManager.init(applicationContext)
         AudioOutputMonitor.init(applicationContext)
+        EqualizerState.init(applicationContext)
         requestNotificationPermission()
         enableEdgeToEdge()
         setContent {

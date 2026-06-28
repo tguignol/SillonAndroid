@@ -148,6 +148,13 @@ fun ServerConnectionScreen() {
 
         Spacer(Modifier.height(Sillon.spacing.s))
 
+        // — Égaliseur (repliable, fermé par défaut) —
+        CollapsibleSection(str(S.EGALISEUR), initiallyExpanded = false) {
+            EqualizerPanel()
+        }
+
+        Spacer(Modifier.height(Sillon.spacing.s))
+
         // — Serveurs configurés (repliable + rafraîchissement global) —
         CollapsibleSection(
             title = str(S.SERVEURS),

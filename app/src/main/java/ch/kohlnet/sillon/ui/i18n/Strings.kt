@@ -16,6 +16,7 @@ enum class S {
     APPARENCE, SYSTEME, CLAIR, SOMBRE, LANGUE,
     SERVEURS, RAFRAICHIR, PRIORITE_HINT, AUCUN_SERVEUR, AJOUTER_SERVEUR, ADRESSE_SERVEUR, UTILISATEUR, MOT_DE_PASSE, AJOUTER,
     MODIFIER_SERVEUR, NOM, ENREGISTRER, ANNULER, MDP_GARDER, CHOISIR_DOSSIER,
+    EGALISEUR, ACTIVE, INACTIF, REINITIALISER,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
     BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT, ALBUMS, ARTISTES,
@@ -67,6 +68,10 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
     S.ENREGISTRER to tr("Enregistrer", "Save", "Speichern", "Salva", "Guardar", "Guardar", "Ruaj", "Sačuvaj", "Memorisar", "Kaydet"),
     S.ANNULER to tr("Annuler", "Cancel", "Abbrechen", "Annulla", "Cancelar", "Cancelar", "Anulo", "Otkaži", "Annullar", "İptal"),
     S.CHOISIR_DOSSIER to tr("Choisir un dossier…", "Choose a folder…", "Ordner wählen…", "Scegli una cartella…", "Elegir una carpeta…", "Escolher uma pasta…", "Zgjidh një dosje…", "Izaberi fasciklu…", "Tscherner in ordinatur…", "Bir klasör seç…"),
+    S.EGALISEUR to tr("Égaliseur", "Equalizer", "Equalizer", "Equalizzatore", "Ecualizador", "Equalizador", "Ekualizues", "Ekvilajzer", "Egalisader", "Ekolayzer"),
+    S.ACTIVE to tr("Activé", "On", "Ein", "Attivo", "Activado", "Ativado", "Aktiv", "Uključeno", "Activà", "Açık"),
+    S.INACTIF to tr("Désactivé", "Off", "Aus", "Disattivato", "Desactivado", "Desativado", "Joaktiv", "Isključeno", "Deactivà", "Kapalı"),
+    S.REINITIALISER to tr("Réinitialiser", "Reset", "Zurücksetzen", "Reimposta", "Restablecer", "Repor", "Rivendos", "Resetuj", "Reinizialisar", "Sıfırla"),
     S.MDP_GARDER to tr(
         "Mot de passe (vide = inchangé)", "Password (blank = unchanged)", "Passwort (leer = unverändert)",
         "Password (vuoto = invariato)", "Contraseña (vacío = sin cambios)", "Palavra-passe (vazio = inalterada)",
