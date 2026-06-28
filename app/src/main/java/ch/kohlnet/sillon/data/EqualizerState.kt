@@ -11,10 +11,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlin.math.roundToInt
 
 /** Modes d'égaliseur (mêmes que l'iOS) : sliders simples / sliders paramétriques / courbe graphique. */
+@Serializable
 enum class EQMode { NORMAL, PARAMETRIC, GRAPHIC }
+
+/** Réglage d'égaliseur enregistré (instantané complet), façon iOS `EQPreset`. */
+@Serializable
+data class EqPreset(
+    val name: String,
+    val mode: EQMode,
+    val bandCount: Int,
+    val gains: List<Float>,
+    val frequencies: List<Float>,
+    val bandwidths: List<Float>,
+)
 
 /**
  * État GLOBAL de l'égaliseur (singleton, partagé entre l'UI et le [EqAudioProcessor] — même process).
@@ -41,7 +56,13 @@ object EqualizerState {
     private val KEY_FREQS = stringPreferencesKey("eqFreqs")
     private val KEY_BWS = stringPreferencesKey("eqBws")
     private val KEY_MODE = stringPreferencesKey("eqMode")
+    private val KEY_PRESETS = stringPreferencesKey("eqPresets")
+    private val json = Json { ignoreUnknownKeys = true }
     private var appContext: Context? = null
+
+    /** Réglages enregistrés par l'utilisateur (persistés). */
+    private val _presets = MutableStateFlow<List<EqPreset>>(emptyList())
+    val presets: StateFlow<List<EqPreset>> = _presets.asStateFlow()
 
     private val _bandCount = MutableStateFlow(DEFAULT_BANDS)
     val bandCount: StateFlow<Int> = _bandCount.asStateFlow()
@@ -88,8 +109,47 @@ object EqualizerState {
             _bandwidths.value = if (bw != null && bw.size == n) bw.toFloatArray() else FloatArray(n) { DEFAULT_BW }
             _enabled.value = prefs[KEY_ENABLED] == "1"
             _mode.value = prefs[KEY_MODE]?.let { runCatching { EQMode.valueOf(it) }.getOrNull() } ?: EQMode.NORMAL
+            _presets.value = prefs[KEY_PRESETS]?.let { runCatching { json.decodeFromString<List<EqPreset>>(it) }.getOrNull() } ?: emptyList()
             generation++
         }
+    }
+
+    /** Enregistre les réglages courants comme nouveau preset (nom auto « Réglage N » si vide). */
+    fun savePreset(name: String = "") {
+        val finalName = name.trim().ifBlank { "Réglage ${_presets.value.size + 1}" }
+        val p = EqPreset(
+            name = finalName,
+            mode = _mode.value,
+            bandCount = _bandCount.value,
+            gains = _gains.value.toList(),
+            frequencies = _frequencies.value.toList(),
+            bandwidths = _bandwidths.value.toList(),
+        )
+        _presets.value = _presets.value + p
+        persistPresets()
+    }
+
+    /** Applique un preset (rétablit bandes/gains/fréquences/largeurs/mode). */
+    fun applyPreset(p: EqPreset) {
+        _bandCount.value = p.bandCount
+        _gains.value = p.gains.toFloatArray()
+        _frequencies.value = p.frequencies.toFloatArray()
+        _bandwidths.value = p.bandwidths.toFloatArray()
+        _mode.value = p.mode
+        generation++
+        persist()
+    }
+
+    fun deletePreset(index: Int) {
+        if (index !in _presets.value.indices) return
+        _presets.value = _presets.value.filterIndexed { i, _ -> i != index }
+        persistPresets()
+    }
+
+    private fun persistPresets() {
+        val ctx = appContext ?: return
+        val s = runCatching { json.encodeToString(_presets.value) }.getOrNull() ?: return
+        scope.launch { ctx.dataStore.edit { it[KEY_PRESETS] = s } }
     }
 
     fun setGain(band: Int, db: Float) {

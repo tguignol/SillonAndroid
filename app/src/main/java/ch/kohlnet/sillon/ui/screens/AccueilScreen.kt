@@ -108,6 +108,7 @@ fun AccueilScreen() {
     val loading by MusicRepository.loading.collectAsState()
     val stats by PlayHistory.stats.collectAsState()
     val servers by MusicRepository.servers.collectAsState()
+    val favTrackKeys by MusicRepository.favoriteTrackKeys.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
     var seeAll by remember { mutableStateOf<SeeAll?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
@@ -157,6 +158,13 @@ fun AccueilScreen() {
             .sortedByDescending { it.second }
             .map { it.first }
     }
+    // Pistes préférées = pistes mises en favori (par titre+artiste) ayant un instantané d'écoute, serveurs actifs.
+    val favoriteTracks = remember(stats, favTrackKeys, servers) {
+        val activeIds = servers.filter { it.active }.map { it.id }.toSet()
+        stats.filter { it.matchKey() in favTrackKeys && it.serverId in activeIds }
+            .sortedByDescending { it.lastPlayedAt }
+            .map { it.toTrack() }
+    }
 
     Column(
         modifier = Modifier
@@ -196,6 +204,12 @@ fun AccueilScreen() {
                 val t = str(S.PLUS_ECOUTES)
                 Section(t, onSeeAll = { seeAll = SeeAll.Albums(t, mostPlayedAlbums) }) {
                     AlbumCarousel(mostPlayedAlbums.take(15), onClick)
+                }
+            }
+            if (favoriteTracks.isNotEmpty()) {
+                val t = str(S.PISTES_PREFEREES)
+                Section(t, onSeeAll = { seeAll = SeeAll.Tracks(t, favoriteTracks) }) {
+                    TrackCarousel(favoriteTracks.take(15)) { i -> PlayerController.play(favoriteTracks, i) }
                 }
             }
             if (favorites.isNotEmpty()) {

@@ -19,7 +19,7 @@ enum class S {
     EGALISEUR, ACTIVE, INACTIF, REINITIALISER, BANDES, FILE_ATTENTE, VIDER,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
-    TITRES_PLUS_ECOUTES, ALBUMS_RECEMMENT, PLUS_ECOUTES,
+    TITRES_PLUS_ECOUTES, ALBUMS_RECEMMENT, PLUS_ECOUTES, PISTES_PREFEREES,
     BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT, ALBUMS, ARTISTES,
     OUT_BLUETOOTH, OUT_WIRED, OUT_SPEAKER,
 }
@@ -91,6 +91,7 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
     S.TITRES_PLUS_ECOUTES to tr("Titres les plus écoutés", "Most played tracks", "Meistgespielte Titel", "Brani più ascoltati", "Canciones más escuchadas", "Faixas mais ouvidas", "Këngët më të dëgjuara", "Najslušanije pesme", "Toccs ils pli tadlads", "En çok çalınan parçalar"),
     S.ALBUMS_RECEMMENT to tr("Albums écoutés récemment", "Recently played albums", "Kürzlich gehörte Alben", "Album ascoltati di recente", "Álbumes escuchados recientemente", "Álbuns ouvidos recentemente", "Albumet e dëgjuara së fundmi", "Nedavno slušani albumi", "Albums tadlads dacurt", "Son çalınan albümler"),
     S.PLUS_ECOUTES to tr("Les plus écoutés", "Most played", "Meistgehört", "I più ascoltati", "Los más escuchados", "Os mais ouvidos", "Më të dëgjuarit", "Najslušaniji", "Ils pli tadlads", "En çok çalınanlar"),
+    S.PISTES_PREFEREES to tr("Pistes préférées", "Favorite tracks", "Lieblingstitel", "Brani preferiti", "Canciones favoritas", "Faixas favoritas", "Këngët e preferuara", "Omiljene pesme", "Toccs preferids", "Favori parçalar"),
     S.BIBLIOTHEQUE_VIDE to tr(
         "Aucun album.\nConnecte-toi à un serveur dans Réglages.",
         "No albums.\nConnect to a server in Settings.",

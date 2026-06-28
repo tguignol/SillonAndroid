@@ -1,7 +1,9 @@
 package ch.kohlnet.sillon.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -126,7 +130,45 @@ fun EqualizerPanel() {
                 enabled = bandCount < EqualizerState.MAX_BANDS,
             ) { Icon(Icons.Filled.Add, "+", tint = Sillon.colors.texteIvoire) }
         }
+
+        // Presets (réglages enregistrés) : tap = appliquer, appui long = supprimer.
+        val presets by EqualizerState.presets.collectAsState()
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Presets", style = Sillon.type.corps, color = Sillon.colors.texteSourdine, modifier = Modifier.weight(1f))
+            TextButton(onClick = { EqualizerState.savePreset() }) {
+                Text("Enregistrer", style = Sillon.type.corps, color = Sillon.colors.accentCuivre)
+            }
+        }
+        if (presets.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s)) {
+                itemsIndexed(presets) { i, p ->
+                    PresetChip(p.name, onApply = { EqualizerState.applyPreset(p) }, onDelete = { EqualizerState.deletePreset(i) })
+                }
+            }
+            Text(
+                "Appui long sur un preset pour le supprimer.",
+                style = Sillon.type.technique,
+                color = Sillon.colors.texteSourdine.copy(alpha = 0.7f),
+                fontSize = 10.sp,
+            )
+        }
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PresetChip(name: String, onApply: () -> Unit, onDelete: () -> Unit) {
+    Text(
+        text = name,
+        style = Sillon.type.corps.copy(fontSize = 12.sp),
+        color = Sillon.colors.texteIvoire,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Sillon.colors.surfaceElevee)
+            .combinedClickable(onClick = onApply, onLongClick = onDelete)
+            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.xs),
+    )
 }
 
 /* ----------------------------- Mode NORMAL ----------------------------- */

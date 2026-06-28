@@ -213,73 +213,18 @@ private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
     val isFav = t.matchKey() in favTracks
     val dur = duration.coerceAtLeast(1L)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (bottomInset) Modifier.navigationBarsPadding() else Modifier)
-            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.xs)
-            .clip(RoundedCornerShape(Sillon.spacing.l))
-            .background(Sillon.colors.surfaceElevee)
-            .clickable(onClick = onOpen)
-            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.s),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
-    ) {
-        AsyncImage(
-            model = t.coverUrl,
-            contentDescription = t.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(Sillon.spacing.s))
-                .background(placeholderBrush(t.title.ifBlank { t.id })),
+    val progress = @Composable { modifier: Modifier ->
+        ThinSlider(
+            value = position.coerceIn(0L, dur).toFloat(),
+            onValueChange = { PlayerController.seekTo(it.toLong()) },
+            valueRange = 0f..dur.toFloat(),
+            activeColor = Sillon.colors.accentCuivre,
+            inactiveColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
+            thumbColor = Sillon.colors.accentCuivre,
+            modifier = modifier,
         )
-        IconButton(onClick = { MusicRepository.toggleTrackFavorite(t) }) {
-            Icon(
-                if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = "Favori",
-                tint = if (isFav) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
-            )
-        }
-
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                t.title,
-                style = Sillon.type.corps,
-                color = Sillon.colors.texteIvoire,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
-            val sub = listOfNotNull(t.artist.takeIf { it.isNotBlank() }, t.album?.takeIf { it.isNotBlank() })
-            if (sub.isNotEmpty()) {
-                Text(
-                    sub.joinToString(" · "),
-                    style = Sillon.type.corps.copy(fontSize = 12.sp),
-                    color = Sillon.colors.texteSourdine,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(barTime(position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
-                ThinSlider(
-                    value = position.coerceIn(0L, dur).toFloat(),
-                    onValueChange = { PlayerController.seekTo(it.toLong()) },
-                    valueRange = 0f..dur.toFloat(),
-                    activeColor = Sillon.colors.accentCuivre,
-                    inactiveColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
-                    thumbColor = Sillon.colors.accentCuivre,
-                    modifier = Modifier.weight(1f).padding(horizontal = Sillon.spacing.s),
-                )
-                Text("-" + barTime(dur - position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
-            }
-        }
-
-        IconButton(onClick = { PlayerController.previous() }) {
-            Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire)
-        }
+    }
+    val playButton = @Composable {
         Box(
             modifier = Modifier
                 .size(44.dp)
@@ -295,8 +240,101 @@ private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
                 modifier = Modifier.size(26.dp),
             )
         }
-        IconButton(onClick = { PlayerController.next() }) {
-            Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire)
+    }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (bottomInset) Modifier.navigationBarsPadding() else Modifier)
+            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.xs),
+    ) {
+        // Écran étroit (Fold replié / téléphone) → version COMPACTE : pochette + titre/artiste +
+        // lecture/suivant, fine ligne de progression en bas. Écran large → version riche.
+        val compact = maxWidth < 560.dp
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Sillon.spacing.l))
+                .background(Sillon.colors.surfaceElevee)
+                .clickable(onClick = onOpen),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.s),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+            ) {
+                AsyncImage(
+                    model = t.coverUrl,
+                    contentDescription = t.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(if (compact) 40.dp else 48.dp)
+                        .clip(RoundedCornerShape(Sillon.spacing.s))
+                        .background(placeholderBrush(t.title.ifBlank { t.id })),
+                )
+                if (!compact) {
+                    IconButton(onClick = { MusicRepository.toggleTrackFavorite(t) }) {
+                        Icon(
+                            if (isFav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = "Favori",
+                            tint = if (isFav) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = if (compact) Alignment.Start else Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        t.title,
+                        style = Sillon.type.corps,
+                        color = Sillon.colors.texteIvoire,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = if (compact) TextAlign.Start else TextAlign.Center,
+                    )
+                    val sub = listOfNotNull(t.artist.takeIf { it.isNotBlank() }, t.album?.takeIf { it.isNotBlank() })
+                    if (sub.isNotEmpty()) {
+                        Text(
+                            sub.joinToString(" · "),
+                            style = Sillon.type.corps.copy(fontSize = 12.sp),
+                            color = Sillon.colors.texteSourdine,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = if (compact) TextAlign.Start else TextAlign.Center,
+                        )
+                    }
+                    if (!compact) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(barTime(position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+                            progress(Modifier.weight(1f).padding(horizontal = Sillon.spacing.s))
+                            Text("-" + barTime(dur - position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+                        }
+                    }
+                }
+
+                if (!compact) {
+                    IconButton(onClick = { PlayerController.previous() }) {
+                        Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire)
+                    }
+                }
+                playButton()
+                IconButton(onClick = { PlayerController.next() }) {
+                    Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire)
+                }
+            }
+            // Écran étroit : progression pleine largeur en bas (sans labels de temps, pour gagner de la place).
+            if (compact) {
+                progress(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Sillon.spacing.m)
+                        .padding(bottom = Sillon.spacing.xs),
+                )
+            }
         }
     }
 }
