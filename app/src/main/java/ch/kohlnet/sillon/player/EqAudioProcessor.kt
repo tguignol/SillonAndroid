@@ -56,16 +56,24 @@ class EqAudioProcessor : BaseAudioProcessor() {
     override fun queueInput(inputBuffer: ByteBuffer) {
         if (EqualizerState.generation != lastGen) recompute()
         feedSpectrum(inputBuffer) // analyse du son réellement joué (même si l'EQ est désactivé)
-        val size = inputBuffer.remaining()
-        val output = replaceOutputBuffer(size)
+        // On copie l'entrée dans un tableau AVANT d'obtenir le buffer de sortie : le pipeline Media3
+        // peut réutiliser NOTRE PROPRE buffer de sortie comme buffer d'entrée (alias). Une écriture
+        // « en place » (`output.put(inputBuffer)` ou la boucle EQ avec source == destination) lèverait
+        // alors `IllegalArgumentException: The source buffer is this buffer` → lecture impossible
+        // (aucun `onPlayerError` → échec silencieux). Lire l'entrée d'abord garantit src ≠ dst.
+        val order = inputBuffer.order()
+        val inBytes = ByteArray(inputBuffer.remaining())
+        inputBuffer.get(inBytes)
+        val output = replaceOutputBuffer(inBytes.size)
         if (bypass || channels <= 0) {
-            output.put(inputBuffer)
+            output.put(inBytes)
             output.flip()
             return
         }
+        val src = ByteBuffer.wrap(inBytes).order(order)
         var ch = 0
-        while (inputBuffer.hasRemaining()) {
-            var y = inputBuffer.short.toDouble()
+        while (src.hasRemaining()) {
+            var y = src.short.toDouble()
             for (bq in biquads[ch]) y = bq.process(y)
             output.putShort(y.coerceIn(-32768.0, 32767.0).roundToInt().toShort())
             ch = (ch + 1) % channels
