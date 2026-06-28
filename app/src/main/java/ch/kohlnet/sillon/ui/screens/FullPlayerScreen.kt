@@ -1,6 +1,7 @@
 package ch.kohlnet.sillon.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -63,6 +64,8 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
+import ch.kohlnet.sillon.data.SpectrumPrefs
+import ch.kohlnet.sillon.data.SpectrumStyle
 import ch.kohlnet.sillon.player.AudioOutputMonitor
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.SpectrumRing
@@ -137,25 +140,34 @@ private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, modifier: Mo
             PlayerPane.EQUALIZER -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
                 EqualizerPanel()
             }
-            PlayerPane.COVER -> Box(
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                SpectrumRing(
-                    playing = playing,
-                    color = Sillon.colors.accentCuivre.copy(alpha = 0.55f),
-                    accent = Sillon.colors.signalTeal,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                AsyncImage(
-                    model = t.coverUrl,
-                    contentDescription = t.title,
-                    contentScale = ContentScale.Crop,
+            PlayerPane.COVER -> {
+                val style by SpectrumPrefs.style.collectAsState()
+                val square = style == SpectrumStyle.OFF_SQUARE
+                val coverFrac = if (style == SpectrumStyle.OFF || square) 0.92f else 0.74f
+                Box(
                     modifier = Modifier
-                        .fillMaxSize(0.74f)
-                        .clip(CircleShape)
-                        .background(placeholderBrush(t.title.ifBlank { t.id })),
-                )
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clickable { SpectrumPrefs.cycle() }, // taper la pochette = changer de visualiseur
+                    contentAlignment = Alignment.Center,
+                ) {
+                    SpectrumRing(
+                        playing = playing,
+                        style = style,
+                        color = Sillon.colors.accentCuivre.copy(alpha = 0.55f),
+                        accent = Sillon.colors.signalTeal,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    AsyncImage(
+                        model = t.coverUrl,
+                        contentDescription = t.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize(coverFrac)
+                            .clip(if (square) RoundedCornerShape(Sillon.spacing.cardCorner) else CircleShape)
+                            .background(placeholderBrush(t.title.ifBlank { t.id })),
+                    )
+                }
             }
         }
     }

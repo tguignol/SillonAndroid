@@ -17,6 +17,7 @@ import ch.kohlnet.sillon.data.AppearanceMode
 import ch.kohlnet.sillon.data.EqualizerState
 import ch.kohlnet.sillon.data.LanguageManager
 import ch.kohlnet.sillon.data.MusicRepository
+import ch.kohlnet.sillon.data.SpectrumPrefs
 import ch.kohlnet.sillon.player.AudioOutputMonitor
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.theme.SillonTheme
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
         LanguageManager.init(applicationContext)
         AudioOutputMonitor.init(applicationContext)
         EqualizerState.init(applicationContext)
+        SpectrumPrefs.init(applicationContext)
         requestNotificationPermission()
         enableEdgeToEdge()
         setContent {
