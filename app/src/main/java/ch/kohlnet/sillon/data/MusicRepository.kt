@@ -260,10 +260,11 @@ object MusicRepository {
     fun removeServer(id: String) {
         scope.launch {
             providers.remove(id)?.close()
+            serverAlbums.remove(id)
             val updated = _servers.value.filterNot { it.id == id }
             _servers.value = updated
             appContext?.let { ServerStore.save(it, updated) }
-            loadAlbums()
+            recomputeAlbums()
         }
     }
 
@@ -278,18 +279,22 @@ object MusicRepository {
             list[i] = list[j].also { list[j] = list[i] }
             _servers.value = list
             appContext?.let { ServerStore.save(it, list) }
-            loadAlbums()
+            recomputeAlbums() // l'ordre change la dédup, pas besoin de re-télécharger
         }
     }
 
-    /** Active/désactive un serveur dans la bibliothèque agrégée. */
+    /** Active/désactive un serveur dans la bibliothèque agrégée (retrait/affichage INSTANTANÉ). */
     fun setActive(id: String, active: Boolean) {
         scope.launch {
             val updated = _servers.value.map { if (it.id == id) it.copy(active = active) else it }
             _servers.value = updated
             appContext?.let { ServerStore.save(it, updated) }
             rebuildProviders()
-            loadAlbums()
+            // Réactivé sans cache → récupérer juste ce serveur ; désactivation/cache présent → instantané.
+            if (active && serverAlbums[id] == null) {
+                providers[id]?.let { p -> serverAlbums[id] = runCatching { p.allAlbums() }.getOrDefault(emptyList()) }
+            }
+            recomputeAlbums()
         }
     }
 
@@ -321,14 +326,33 @@ object MusicRepository {
 
     fun isTrackFavorite(track: Track): Boolean = track.matchKey() in _favoriteTrackKeys.value
 
-    /** Recharge TOUTE la bibliothèque agrégée de tous les serveurs actifs (paginée). */
+    /** Cache des albums BRUTS par serveur (avant dédup) → (dés)activer/réordonner SANS re-télécharger. */
+    private val serverAlbums = mutableMapOf<String, List<Album>>()
+
+    /** Recharge TOUTE la bibliothèque des serveurs actifs (paginée) et met à jour le cache par serveur. */
     suspend fun loadAlbums() {
         _loading.value = true
         try {
-            _albums.value = aggregate { it.allAlbums() }
+            val ordered = _servers.value.filter { it.active }.mapNotNull { cfg -> providers[cfg.id]?.let { cfg.id to it } }
+            val fetched = coroutineScope {
+                ordered.map { (id, p) -> async { id to runCatching { p.allAlbums() }.getOrDefault(emptyList()) } }.awaitAll()
+            }
+            fetched.forEach { (id, list) -> serverAlbums[id] = list }
+            serverAlbums.keys.retainAll(_servers.value.map { it.id }.toSet())
+            recomputeAlbums()
         } finally {
             _loading.value = false
         }
+    }
+
+    /**
+     * Reconstruit la bibliothèque agrégée DEPUIS LE CACHE, en ne gardant que les serveurs ACTIFS
+     * (dans l'ordre de priorité → dédup correcte). INSTANTANÉ (aucun réseau) : une (dés)activation
+     * ou un changement de priorité retire/affiche immédiatement les albums et badges concernés.
+     */
+    private fun recomputeAlbums() {
+        val activeOrdered = _servers.value.filter { it.active }.map { it.id }
+        _albums.value = dedup(activeOrdered.flatMap { id -> serverAlbums[id].orEmpty() })
     }
 
     /** Rechargement GLOBAL (bouton « Rafraîchir ») : recrée les providers actifs et relit la bibliothèque. */
@@ -344,7 +368,7 @@ object MusicRepository {
         }
     }
 
-    /** Rechargement d'UN serveur : recrée son provider (reconnexion) puis relit la bibliothèque agrégée. */
+    /** Rechargement d'UN serveur : recrée son provider (reconnexion), re-télécharge SES albums, re-dédup. */
     fun refreshServer(id: String) {
         scope.launch {
             _refreshingServerId.value = id
@@ -352,10 +376,12 @@ object MusicRepository {
                 _servers.value.firstOrNull { it.id == id && it.active }?.let { cfg ->
                     appContext?.let { ctx ->
                         providers.remove(id)?.close()
-                        providers[id] = providerFor(cfg, ctx)
+                        val p = providerFor(cfg, ctx)
+                        providers[id] = p
+                        serverAlbums[id] = runCatching { p.allAlbums() }.getOrDefault(emptyList())
                     }
                 }
-                loadAlbums()
+                recomputeAlbums()
             } finally {
                 _refreshingServerId.value = null
             }
