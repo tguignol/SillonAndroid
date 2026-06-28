@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,6 +41,7 @@ import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.PlayerController
+import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
 import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
@@ -110,8 +112,13 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
 
         Spacer(Modifier.height(Sillon.spacing.l))
 
+        val listState = rememberLazyListState()
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
             verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
         ) {
             items(tracks, key = { it.id }) { track ->

@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.ui.components.SourceBadge
+import ch.kohlnet.sillon.ui.components.lazyGridScrollbar
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.theme.Sillon
@@ -212,7 +213,9 @@ private fun AlbumGridScreen(title: String, albums: List<Album>, emptyText: Strin
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(CARD),
                 state = gridState,
-                modifier = Modifier.padding(top = Sillon.spacing.m),
+                modifier = Modifier
+                    .padding(top = Sillon.spacing.m)
+                    .lazyGridScrollbar(gridState, Sillon.colors.texteSourdine),
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
                 verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
                 contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),

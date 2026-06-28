@@ -106,15 +106,15 @@ fun SourceBadge(types: List<ServerType>, sourceCount: Int, modifier: Modifier = 
                 .clip(RoundedCornerShape(50))
                 .background(Color.Black.copy(alpha = 0.6f))
                 .border(0.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(50))
-                .padding(horizontal = 5.dp, vertical = 2.dp),
+                .padding(horizontal = 4.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(1.dp),
         ) {
-            Icon(Icons.Filled.Layers, contentDescription = null, tint = Color.White, modifier = Modifier.size(9.dp))
+            Icon(Icons.Filled.Layers, contentDescription = null, tint = Color.White, modifier = Modifier.size(7.dp))
             Text(
                 text = "$sourceCount",
                 color = Color.White,
-                fontSize = 10.sp,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -122,13 +122,13 @@ fun SourceBadge(types: List<ServerType>, sourceCount: Int, modifier: Modifier = 
         val type = types.firstOrNull() ?: return
         Box(
             modifier = modifier
-                .size(20.dp)
+                .size(14.dp)
                 .clip(CircleShape)
                 .background(Color.White)
                 .border(0.5.dp, Color.Black.copy(alpha = 0.12f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            ServerMark(type, Modifier.size(15.dp))
+            ServerMark(type, Modifier.size(10.dp))
         }
     }
 }
