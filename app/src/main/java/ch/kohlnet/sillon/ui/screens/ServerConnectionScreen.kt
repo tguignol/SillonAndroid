@@ -131,39 +131,8 @@ fun ServerConnectionScreen() {
     ) {
         Text(str(S.REGLAGES), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
 
-        // — Apparence (repliable) —
-        CollapsibleSection(str(S.APPARENCE)) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                AppearanceMode.entries.forEachIndexed { i, mode ->
-                    val label = when (mode) {
-                        AppearanceMode.SYSTEM -> str(S.SYSTEME)
-                        AppearanceMode.LIGHT -> str(S.CLAIR)
-                        AppearanceMode.DARK -> str(S.SOMBRE)
-                    }
-                    SegmentedButton(
-                        selected = appearance == mode,
-                        onClick = { AppSettings.setAppearance(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(i, AppearanceMode.entries.size),
-                    ) { Text(label, style = Sillon.type.corps) }
-                }
-            }
-        }
-
-        // — Langue —
-        Text(str(S.LANGUE), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
-        LanguagePicker()
-
-        Spacer(Modifier.height(Sillon.spacing.s))
-
-        // — Égaliseur (repliable, fermé par défaut) —
-        CollapsibleSection(str(S.EGALISEUR), initiallyExpanded = false) {
-            EqualizerPanel()
-        }
-
-        Spacer(Modifier.height(Sillon.spacing.s))
-
-        // — Ajouter un serveur (repliable) — PLACÉ AU-DESSUS de la liste des serveurs enregistrés :
-        // c'est l'action principale, surtout tant qu'aucun serveur n'est encore configuré.
+        // — Ajouter un serveur (repliable) — PLACÉ EN PREMIER, au-dessus de toutes les autres
+        // sections : c'est l'action principale (surtout tant qu'aucun serveur n'est configuré).
         CollapsibleSection(str(S.AJOUTER_SERVEUR), initiallyExpanded = false) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 ServerType.entries.forEachIndexed { i, t ->
@@ -237,6 +206,37 @@ fun ServerConnectionScreen() {
                 )
                 ConnectionStatus.Idle -> {}
             }
+        }
+
+        Spacer(Modifier.height(Sillon.spacing.s))
+
+        // — Apparence (repliable) —
+        CollapsibleSection(str(S.APPARENCE)) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                AppearanceMode.entries.forEachIndexed { i, mode ->
+                    val label = when (mode) {
+                        AppearanceMode.SYSTEM -> str(S.SYSTEME)
+                        AppearanceMode.LIGHT -> str(S.CLAIR)
+                        AppearanceMode.DARK -> str(S.SOMBRE)
+                    }
+                    SegmentedButton(
+                        selected = appearance == mode,
+                        onClick = { AppSettings.setAppearance(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(i, AppearanceMode.entries.size),
+                    ) { Text(label, style = Sillon.type.corps) }
+                }
+            }
+        }
+
+        // — Langue —
+        Text(str(S.LANGUE), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        LanguagePicker()
+
+        Spacer(Modifier.height(Sillon.spacing.s))
+
+        // — Égaliseur (repliable, fermé par défaut) —
+        CollapsibleSection(str(S.EGALISEUR), initiallyExpanded = false) {
+            EqualizerPanel()
         }
 
         Spacer(Modifier.height(Sillon.spacing.s))
