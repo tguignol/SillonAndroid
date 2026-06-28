@@ -50,6 +50,7 @@ interface ServerProvider {
 }
 
 /** Playlist DISTANTE (serveur), lecture seule. `serverId` route les requêtes vers le bon provider. */
+@Serializable
 data class ServerPlaylist(
     val id: String,
     val name: String,

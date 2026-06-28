@@ -51,8 +51,10 @@ import androidx.compose.ui.unit.dp
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Playlists
 import ch.kohlnet.sillon.data.ServerPlaylist
+import ch.kohlnet.sillon.data.ServerType
 import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.PlayerController
+import ch.kohlnet.sillon.ui.components.ServerMark
 import ch.kohlnet.sillon.ui.components.TrackMenuButton
 import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
 import ch.kohlnet.sillon.ui.components.trackCountLabel
@@ -102,21 +104,21 @@ fun PlaylistsListScreen(onOpenLocal: (String) -> Unit, onOpenServer: (ServerPlay
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Sillon.spacing.xs),
                 verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
             ) {
-                // Playlists LOCALES (modifiables) : favori + suppression via la corbeille.
+                // Playlists LOCALES (modifiables) : aucune icône de provenance + suppression via la corbeille.
                 items(playlists, key = { "loc/${it.id}" }) { pl ->
                     val k = Playlists.favKeyLocal(pl.id)
-                    PlaylistRow(name = pl.name, subtitle = trackCountLabel(pl.tracks.size), badge = null,
+                    PlaylistRow(name = pl.name, subtitle = trackCountLabel(pl.tracks.size), sourceType = null,
                         favorite = k in favKeys, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenLocal(pl.id) }) {
                         IconButton(onClick = { Playlists.delete(pl.id) }) {
                             Icon(Icons.Filled.Delete, contentDescription = str(S.SUPPRIMER), tint = Sillon.colors.texteSourdine)
                         }
                     }
                 }
-                // Playlists SERVEUR (lecture seule) : favori + badge de provenance, pas de suppression.
+                // Playlists SERVEUR (lecture seule) : favori + icône de provenance, pas de suppression.
                 items(serverPlaylists, key = { "srv/${it.serverId}/${it.id}" }) { sp ->
-                    val badge = servers.firstOrNull { it.id == sp.serverId }?.type?.badge
+                    val type = servers.firstOrNull { it.id == sp.serverId }?.type
                     val k = Playlists.favKeyServer(sp.serverId, sp.id)
-                    PlaylistRow(name = sp.name, subtitle = trackCountLabel(sp.trackCount), badge = badge,
+                    PlaylistRow(name = sp.name, subtitle = trackCountLabel(sp.trackCount), sourceType = type,
                         favorite = k in favKeys, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenServer(sp) })
                 }
             }
@@ -134,12 +136,15 @@ fun PlaylistsListScreen(onOpenLocal: (String) -> Unit, onOpenServer: (ServerPlay
     }
 }
 
-/** Ligne de playlist (locale ou serveur) : icône, nom, sous-titre, badge serveur, cœur favori, action à droite. */
+/**
+ * Ligne de playlist (locale ou serveur) : icône, nom, sous-titre, ICÔNE DE PROVENANCE (logo du serveur)
+ * — RIEN pour une playlist locale (`sourceType == null`) —, cœur favori, action à droite.
+ */
 @Composable
 private fun PlaylistRow(
     name: String,
     subtitle: String,
-    badge: String?,
+    sourceType: ServerType?,
     favorite: Boolean,
     onToggleFav: () -> Unit,
     onOpen: () -> Unit,
@@ -155,8 +160,9 @@ private fun PlaylistRow(
             Text(name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
         }
-        if (badge != null) {
-            Text(badge, style = Sillon.type.technique, color = Sillon.colors.signalTeal)
+        // Icône de provenance (Jellyfin / Navidrome) ; aucune pour une playlist locale.
+        if (sourceType != null) {
+            ServerMark(sourceType, Modifier.size(18.dp))
         }
         IconButton(onClick = onToggleFav) {
             Icon(
@@ -292,13 +298,13 @@ fun FavoritePlaylistsList(onOpenLocal: (String) -> Unit, onOpenServer: (ServerPl
     ) {
         items(localFav, key = { "loc/${it.id}" }) { pl ->
             val k = Playlists.favKeyLocal(pl.id)
-            PlaylistRow(name = pl.name, subtitle = trackCountLabel(pl.tracks.size), badge = null,
+            PlaylistRow(name = pl.name, subtitle = trackCountLabel(pl.tracks.size), sourceType = null,
                 favorite = true, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenLocal(pl.id) })
         }
         items(serverFav, key = { "srv/${it.serverId}/${it.id}" }) { sp ->
-            val badge = servers.firstOrNull { it.id == sp.serverId }?.type?.badge
+            val type = servers.firstOrNull { it.id == sp.serverId }?.type
             val k = Playlists.favKeyServer(sp.serverId, sp.id)
-            PlaylistRow(name = sp.name, subtitle = trackCountLabel(sp.trackCount), badge = badge,
+            PlaylistRow(name = sp.name, subtitle = trackCountLabel(sp.trackCount), sourceType = type,
                 favorite = true, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenServer(sp) })
         }
     }

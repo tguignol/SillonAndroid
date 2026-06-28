@@ -194,6 +194,13 @@ object MusicRepository {
                 serverAlbums.keys.retainAll(_servers.value.map { it.id }.toSet())
                 recomputeAlbums()
             }
+            // Idem pour les playlists serveur en cache (restent visibles même serveur injoignable).
+            val cachedPl = ServerPlaylistsCache.load(context.applicationContext)
+            if (cachedPl.isNotEmpty()) {
+                serverPlaylistsByServer.putAll(cachedPl)
+                serverPlaylistsByServer.keys.retainAll(_servers.value.map { it.id }.toSet())
+                recomputeServerPlaylists()
+            }
             // 2) Rafraîchissement réseau EN FOND → met à jour la biblio + réécrit le cache disque.
             loadAlbums()
         }
@@ -295,12 +302,15 @@ object MusicRepository {
         scope.launch {
             providers.remove(id)?.close()
             serverAlbums.remove(id)
+            serverPlaylistsByServer.remove(id)
             clearTrackCacheFor(id)
             val updated = _servers.value.filterNot { it.id == id }
             _servers.value = updated
             appContext?.let { ServerStore.save(it, updated) }
             recomputeAlbums()
+            recomputeServerPlaylists()
             persistLibraryCache()
+            persistServerPlaylistsCache()
         }
     }
 
@@ -316,6 +326,7 @@ object MusicRepository {
             _servers.value = list
             appContext?.let { ServerStore.save(it, list) }
             recomputeAlbums() // l'ordre change la dédup, pas besoin de re-télécharger
+            recomputeServerPlaylists()
         }
     }
 
@@ -331,7 +342,13 @@ object MusicRepository {
                 providers[id]?.let { p -> runCatching { p.allAlbums() }.getOrNull()?.let { serverAlbums[id] = it } }
                 persistLibraryCache()
             }
+            // Réactivé sans cache de playlists → on tente de les récupérer aussi.
+            if (active && serverPlaylistsByServer[id] == null) {
+                providers[id]?.let { p -> runCatching { p.playlists() }.getOrNull()?.let { serverPlaylistsByServer[id] = it } }
+                persistServerPlaylistsCache()
+            }
             recomputeAlbums()
+            recomputeServerPlaylists()
         }
     }
 
@@ -393,13 +410,32 @@ object MusicRepository {
         }
     }
 
-    /** Charge les playlists des serveurs actifs (lecture seule), en parallèle. Échec serveur → ignoré. */
+    /** Cache des playlists serveur PAR serveur → affichage instantané + préservation hors-ligne. */
+    private val serverPlaylistsByServer = mutableMapOf<String, List<ServerPlaylist>>()
+
+    /** Charge les playlists des serveurs actifs (lecture seule), en parallèle, et met à jour le cache. */
     suspend fun loadServerPlaylists() {
-        val active = _servers.value.filter { it.active }.mapNotNull { providers[it.id] }
-        val all = coroutineScope {
-            active.map { p -> async { runCatching { p.playlists() }.getOrNull() } }.awaitAll()
+        val active = _servers.value.filter { it.active }.mapNotNull { cfg -> providers[cfg.id]?.let { cfg.id to it } }
+        val fetched = coroutineScope {
+            active.map { (id, p) -> async { id to runCatching { p.playlists() }.getOrNull() } }.awaitAll()
         }
-        _serverPlaylists.value = all.filterNotNull().flatten()
+        // Succès seulement (null = injoignable) → un serveur momentanément KO garde ses playlists connues.
+        fetched.forEach { (id, list) -> if (list != null) serverPlaylistsByServer[id] = list }
+        serverPlaylistsByServer.keys.retainAll(_servers.value.map { it.id }.toSet())
+        recomputeServerPlaylists()
+        persistServerPlaylistsCache()
+    }
+
+    /** Recompose les playlists serveur visibles depuis le cache (serveurs ACTIFS, dans l'ordre). */
+    private fun recomputeServerPlaylists() {
+        val activeIds = _servers.value.filter { it.active }.map { it.id }
+        _serverPlaylists.value = activeIds.flatMap { serverPlaylistsByServer[it].orEmpty() }
+    }
+
+    private fun persistServerPlaylistsCache() {
+        val ctx = appContext ?: return
+        val snapshot = serverPlaylistsByServer.toMap()
+        scope.launch { ServerPlaylistsCache.save(ctx, snapshot) }
     }
 
     /** Morceaux d'une playlist serveur — routés vers le provider d'origine (lecture seule). */
