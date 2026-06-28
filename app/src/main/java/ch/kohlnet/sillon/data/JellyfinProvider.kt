@@ -25,25 +25,37 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
     }
 
     override suspend fun tracks(albumId: String): List<Track> =
-        client.albumTracks(token, userId, albumId).map { tk ->
-            val audio = tk.mediaStreams?.firstOrNull { it.type.equals("Audio", ignoreCase = true) }
-            Track(
-                id = tk.id,
-                title = tk.name,
-                artist = tk.artists?.joinToString(", ").orEmpty(),
-                index = tk.index,
-                disc = tk.disc,
-                durationMs = tk.runTimeTicks?.div(10_000),
-                streamUrl = client.streamUrl(tk.id, token),
-                coverUrl = client.coverUrl(tk.id, token),
-                serverId = config.id,
-                album = tk.album,
-                format = fileFormat(tk.container, tk.path, audio?.codec),
-                sampleRateHz = audio?.sampleRate,
-                bitDepthBits = audio?.bitDepth,
-                bitrateKbps = audio?.bitRate?.let { it / 1000 },
-            )
+        client.albumTracks(token, userId, albumId).map(::toTrack)
+
+    /** Mappe une piste Jellyfin vers le modèle UI (réutilisé par album ET playlist). */
+    private fun toTrack(tk: JellyfinTrack): Track {
+        val audio = tk.mediaStreams?.firstOrNull { it.type.equals("Audio", ignoreCase = true) }
+        return Track(
+            id = tk.id,
+            title = tk.name,
+            artist = tk.artists?.joinToString(", ").orEmpty(),
+            index = tk.index,
+            disc = tk.disc,
+            durationMs = tk.runTimeTicks?.div(10_000),
+            streamUrl = client.streamUrl(tk.id, token),
+            coverUrl = client.coverUrl(tk.id, token),
+            serverId = config.id,
+            album = tk.album,
+            format = fileFormat(tk.container, tk.path, audio?.codec),
+            sampleRateHz = audio?.sampleRate,
+            bitDepthBits = audio?.bitDepth,
+            bitrateKbps = audio?.bitRate?.let { it / 1000 },
+        )
+    }
+
+    // Playlists serveur (LECTURE SEULE).
+    override suspend fun playlists(): List<ServerPlaylist> =
+        client.playlists(token, userId).map {
+            ServerPlaylist(id = it.id, name = it.name, serverId = config.id, coverUrl = client.coverUrl(it.id, token), trackCount = it.childCount ?: 0)
         }
+
+    override suspend fun playlistTracks(playlistId: String): List<Track> =
+        client.playlistTracks(token, userId, playlistId).map(::toTrack)
 
     /** Format affiché : conteneur prioritaire, repli sur l'extension du chemin, puis le codec.
      *  Pour les conteneurs MP4 (m4a…), on désambigüe ALAC vs AAC via le codec (comme l'iOS). */

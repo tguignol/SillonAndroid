@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,17 +22,21 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +48,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Playlists
+import ch.kohlnet.sillon.data.ServerPlaylist
+import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.TrackMenuButton
 import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
@@ -60,8 +68,11 @@ import coil3.compose.AsyncImage
  * local, comme le reste de l'app.
  */
 @Composable
-fun PlaylistsListScreen(onOpen: (String) -> Unit) {
+fun PlaylistsListScreen(onOpenLocal: (String) -> Unit, onOpenServer: (ServerPlaylist) -> Unit) {
     val playlists by Playlists.playlists.collectAsState()
+    val serverPlaylists by MusicRepository.serverPlaylists.collectAsState()
+    val servers by MusicRepository.servers.collectAsState()
+    val favKeys by Playlists.favoriteKeys.collectAsState()
     var showCreate by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
@@ -79,7 +90,7 @@ fun PlaylistsListScreen(onOpen: (String) -> Unit) {
             }
         }
 
-        if (playlists.isEmpty()) {
+        if (playlists.isEmpty() && serverPlaylists.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(str(S.AUCUNE_PLAYLIST), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
             }
@@ -91,21 +102,22 @@ fun PlaylistsListScreen(onOpen: (String) -> Unit) {
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Sillon.spacing.xs),
                 verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
             ) {
-                itemsIndexed(playlists, key = { _, p -> p.id }) { _, pl ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onOpen(pl.id) }.padding(vertical = Sillon.spacing.s),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
-                    ) {
-                        Icon(Icons.Filled.LibraryMusic, contentDescription = null, tint = Sillon.colors.accentCuivre, modifier = Modifier.size(32.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(pl.name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(trackCountLabel(pl.tracks.size), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
-                        }
+                // Playlists LOCALES (modifiables) : favori + suppression via la corbeille.
+                items(playlists, key = { "loc/${it.id}" }) { pl ->
+                    val k = Playlists.favKeyLocal(pl.id)
+                    PlaylistRow(name = pl.name, subtitle = trackCountLabel(pl.tracks.size), badge = null,
+                        favorite = k in favKeys, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenLocal(pl.id) }) {
                         IconButton(onClick = { Playlists.delete(pl.id) }) {
                             Icon(Icons.Filled.Delete, contentDescription = str(S.SUPPRIMER), tint = Sillon.colors.texteSourdine)
                         }
                     }
+                }
+                // Playlists SERVEUR (lecture seule) : favori + badge de provenance, pas de suppression.
+                items(serverPlaylists, key = { "srv/${it.serverId}/${it.id}" }) { sp ->
+                    val badge = servers.firstOrNull { it.id == sp.serverId }?.type?.badge
+                    val k = Playlists.favKeyServer(sp.serverId, sp.id)
+                    PlaylistRow(name = sp.name, subtitle = trackCountLabel(sp.trackCount), badge = badge,
+                        favorite = k in favKeys, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenServer(sp) })
                 }
             }
         }
@@ -119,6 +131,41 @@ fun PlaylistsListScreen(onOpen: (String) -> Unit) {
             onConfirm = { Playlists.create(it); showCreate = false },
             onDismiss = { showCreate = false },
         )
+    }
+}
+
+/** Ligne de playlist (locale ou serveur) : icône, nom, sous-titre, badge serveur, cœur favori, action à droite. */
+@Composable
+private fun PlaylistRow(
+    name: String,
+    subtitle: String,
+    badge: String?,
+    favorite: Boolean,
+    onToggleFav: () -> Unit,
+    onOpen: () -> Unit,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onOpen() }.padding(vertical = Sillon.spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+    ) {
+        Icon(Icons.Filled.LibraryMusic, contentDescription = null, tint = Sillon.colors.accentCuivre, modifier = Modifier.size(32.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+        }
+        if (badge != null) {
+            Text(badge, style = Sillon.type.technique, color = Sillon.colors.signalTeal)
+        }
+        IconButton(onClick = onToggleFav) {
+            Icon(
+                if (favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = "Favori",
+                tint = if (favorite) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine,
+            )
+        }
+        trailing?.invoke()
     }
 }
 
@@ -214,6 +261,121 @@ fun PlaylistDetailScreen(playlistId: String, onBack: () -> Unit) {
             onConfirm = { Playlists.rename(playlist.id, it); showRename = false },
             onDismiss = { showRename = false },
         )
+    }
+}
+
+/**
+ * Liste des playlists FAVORITES (locales + serveur) — utilisée par l'onglet « Playlists » des Favoris.
+ * Le cœur retire des favoris ; tap ouvre le détail (local éditable / serveur lecture seule).
+ */
+@Composable
+fun FavoritePlaylistsList(onOpenLocal: (String) -> Unit, onOpenServer: (ServerPlaylist) -> Unit) {
+    val playlists by Playlists.playlists.collectAsState()
+    val serverPlaylists by MusicRepository.serverPlaylists.collectAsState()
+    val servers by MusicRepository.servers.collectAsState()
+    val favKeys by Playlists.favoriteKeys.collectAsState()
+    val localFav = playlists.filter { Playlists.favKeyLocal(it.id) in favKeys }
+    val serverFav = serverPlaylists.filter { Playlists.favKeyServer(it.serverId, it.id) in favKeys }
+
+    if (localFav.isEmpty() && serverFav.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(str(S.AUCUN_FAVORI), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+        }
+        return
+    }
+    val listState = rememberLazyListState()
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize().lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Sillon.spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+    ) {
+        items(localFav, key = { "loc/${it.id}" }) { pl ->
+            val k = Playlists.favKeyLocal(pl.id)
+            PlaylistRow(name = pl.name, subtitle = trackCountLabel(pl.tracks.size), badge = null,
+                favorite = true, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenLocal(pl.id) })
+        }
+        items(serverFav, key = { "srv/${it.serverId}/${it.id}" }) { sp ->
+            val badge = servers.firstOrNull { it.id == sp.serverId }?.type?.badge
+            val k = Playlists.favKeyServer(sp.serverId, sp.id)
+            PlaylistRow(name = sp.name, subtitle = trackCountLabel(sp.trackCount), badge = badge,
+                favorite = true, onToggleFav = { Playlists.toggleFavorite(k) }, onOpen = { onOpenServer(sp) })
+        }
+    }
+}
+
+/**
+ * Détail d'une playlist SERVEUR (LECTURE SEULE) : on charge ses titres, lecture (tap = depuis ce titre),
+ * tout lire, et ⋮ pour copier un titre dans une playlist locale. La playlist serveur n'est JAMAIS modifiée.
+ */
+@Composable
+fun ServerPlaylistDetailScreen(playlist: ServerPlaylist, onBack: () -> Unit) {
+    var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(playlist.serverId, playlist.id) {
+        tracks = MusicRepository.serverPlaylistTracks(playlist)
+        loaded = true
+    }
+    val current by PlayerController.current.collectAsState()
+
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Sillon.colors.texteIvoire)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(playlist.name, style = Sillon.type.display, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(trackCountLabel(if (loaded) tracks.size else playlist.trackCount), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+            }
+            if (tracks.isNotEmpty()) {
+                IconButton(onClick = { PlayerController.play(tracks, 0) }) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = str(S.LIRE), tint = Sillon.colors.accentCuivre)
+                }
+            }
+        }
+
+        when {
+            !loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Sillon.colors.accentCuivre)
+            }
+            tracks.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(str(S.PLAYLIST_VIDE), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+            }
+            else -> {
+                val listState = rememberLazyListState()
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
+                ) {
+                    itemsIndexed(tracks, key = { index, t -> "$index/${t.serverId}/${t.id}" }) { index, track ->
+                        val isCurrent = current?.let { (track.id == it.id && track.serverId == it.serverId) || track.matchKey() == it.matchKey() } ?: false
+                        Row(
+                            Modifier.fillMaxWidth().clickable { PlayerController.play(tracks, index) }.padding(vertical = Sillon.spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+                        ) {
+                            AsyncImage(
+                                model = track.coverUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(Sillon.spacing.xs)).background(placeholderBrush(track.title.ifBlank { track.id })),
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(track.title, style = Sillon.type.corps, color = if (isCurrent) Sillon.colors.accentCuivre else Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (track.artist.isNotBlank()) {
+                                    Text(track.artist, style = Sillon.type.technique, color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            TrackMenuButton(track)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

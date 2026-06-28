@@ -50,6 +50,7 @@ data class JellyfinItem(
     @SerialName("AlbumArtist") val albumArtist: String? = null,
     @SerialName("ProductionYear") val productionYear: Int? = null,
     @SerialName("Genres") val genres: List<String>? = null,
+    @SerialName("ChildCount") val childCount: Int? = null, // nb de pistes (playlists)
 )
 
 @Serializable
@@ -197,6 +198,25 @@ class JellyfinClient(baseUrl: String) {
             parameter("parentId", albumId)
             parameter("IncludeItemTypes", "Audio")
             parameter("SortBy", "ParentIndexNumber,IndexNumber,SortName")
+            parameter("Fields", "Artists,MediaStreams,Path,Container")
+        }.body<TracksResponse>().items
+
+    /** Playlists du serveur (lecture seule). */
+    suspend fun playlists(token: String, userId: String): List<JellyfinItem> =
+        http.get("$base/Items") {
+            header("X-Emby-Authorization", authHeader(token))
+            parameter("userId", userId)
+            parameter("IncludeItemTypes", "Playlist")
+            parameter("Recursive", "true")
+            parameter("SortBy", "SortName")
+            parameter("Fields", "ChildCount")
+        }.body<ItemsResponse>().items
+
+    /** Morceaux d'une playlist, dans l'ordre de la playlist. */
+    suspend fun playlistTracks(token: String, userId: String, playlistId: String): List<JellyfinTrack> =
+        http.get("$base/Playlists/$playlistId/Items") {
+            header("X-Emby-Authorization", authHeader(token))
+            parameter("userId", userId)
             parameter("Fields", "Artists,MediaStreams,Path,Container")
         }.body<TracksResponse>().items
 

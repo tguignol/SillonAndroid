@@ -27,7 +27,13 @@ data class SubResponse(
     val album: SubAlbum? = null,
     val artist: SubArtist? = null,
     val lyricsList: SubLyricsList? = null,
+    val playlists: SubPlaylists? = null,
+    val playlist: SubPlaylistDetail? = null,
 )
+
+@Serializable data class SubPlaylists(val playlist: List<SubPlaylistItem> = emptyList())
+@Serializable data class SubPlaylistItem(val id: String, val name: String = "", val songCount: Int = 0, val coverArt: String? = null)
+@Serializable data class SubPlaylistDetail(val id: String = "", val name: String = "", val entry: List<SubSong> = emptyList())
 
 @Serializable data class SubAlbumList(val album: List<SubAlbumItem> = emptyList())
 @Serializable data class SubSearchResult(val album: List<SubAlbumItem> = emptyList(), val artist: List<SubArtistItem> = emptyList())
@@ -149,24 +155,34 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
             // Tri (disque, piste, titre) comme iOS : sans cela, l'ordre dépend du serveur et les
             // albums multi-disques sont mal ordonnés (« pas alignés »).
             .sortedWith(compareBy({ it.discNumber ?: 1 }, { it.track ?: Int.MAX_VALUE }, { it.title }))
-            .map { s ->
-            Track(
-                id = s.id,
-                title = s.title,
-                artist = s.artist,
-                index = s.track,
-                disc = s.discNumber,
-                durationMs = s.duration?.let { it * 1000L },
-                streamUrl = streamUrl(s.id, needsTranscode(s.suffix, s.bitDepth)),
-                coverUrl = coverUrl(s.coverArt ?: s.id),
-                serverId = config.id,
-                album = s.album,
-                format = s.suffix,
-                sampleRateHz = s.samplingRate,
-                bitDepthBits = s.bitDepth,
-                bitrateKbps = s.bitRate,
-            )
+            .map(::toTrack)
+
+    /** Mappe une chanson Subsonic vers le modèle UI (réutilisé par album ET playlist). */
+    private fun toTrack(s: SubSong): Track = Track(
+        id = s.id,
+        title = s.title,
+        artist = s.artist,
+        index = s.track,
+        disc = s.discNumber,
+        durationMs = s.duration?.let { it * 1000L },
+        streamUrl = streamUrl(s.id, needsTranscode(s.suffix, s.bitDepth)),
+        coverUrl = coverUrl(s.coverArt ?: s.id),
+        serverId = config.id,
+        album = s.album,
+        format = s.suffix,
+        sampleRateHz = s.samplingRate,
+        bitDepthBits = s.bitDepth,
+        bitrateKbps = s.bitRate,
+    )
+
+    // Playlists serveur (LECTURE SEULE). getPlaylists / getPlaylist (l'ordre des entrées = ordre playlist).
+    override suspend fun playlists(): List<ServerPlaylist> =
+        api("getPlaylists").playlists?.playlist.orEmpty().map {
+            ServerPlaylist(id = it.id, name = it.name, serverId = config.id, coverUrl = it.coverArt?.let(::coverUrl), trackCount = it.songCount)
         }
+
+    override suspend fun playlistTracks(playlistId: String): List<Track> =
+        api("getPlaylist", mapOf("id" to playlistId)).playlist?.entry.orEmpty().map(::toTrack)
 
     override suspend fun lyrics(trackId: String): TrackLyrics? {
         val sl = runCatching { api("getLyricsBySongId", mapOf("id" to trackId)).lyricsList?.structuredLyrics?.firstOrNull() }

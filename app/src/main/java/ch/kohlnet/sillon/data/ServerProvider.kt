@@ -42,8 +42,21 @@ interface ServerProvider {
     suspend fun albumsByArtistName(name: String): List<Album>
     suspend fun tracks(albumId: String): List<Track>
     suspend fun lyrics(trackId: String): TrackLyrics?
+    /** Playlists du serveur (LECTURE SEULE — jamais modifiées). Vide par défaut (ex. fichiers locaux). */
+    suspend fun playlists(): List<ServerPlaylist> = emptyList()
+    /** Morceaux d'une playlist serveur, dans l'ordre. Vide par défaut. */
+    suspend fun playlistTracks(playlistId: String): List<Track> = emptyList()
     fun close()
 }
+
+/** Playlist DISTANTE (serveur), lecture seule. `serverId` route les requêtes vers le bon provider. */
+data class ServerPlaylist(
+    val id: String,
+    val name: String,
+    val serverId: String,
+    val coverUrl: String? = null,
+    val trackCount: Int = 0,
+)
 
 /** Crée le provider correspondant à une config (le contexte ne sert qu'aux fichiers locaux). */
 fun providerFor(config: ServerConfig, context: Context): ServerProvider = when (config.type) {

@@ -141,6 +141,10 @@ object MusicRepository {
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    /** Playlists des serveurs actifs (LECTURE SEULE), agrégées — fusionnées aux playlists locales dans l'UI. */
+    private val _serverPlaylists = MutableStateFlow<List<ServerPlaylist>>(emptyList())
+    val serverPlaylists: StateFlow<List<ServerPlaylist>> = _serverPlaylists.asStateFlow()
+
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
 
@@ -383,10 +387,24 @@ object MusicRepository {
             serverAlbums.keys.retainAll(_servers.value.map { it.id }.toSet())
             recomputeAlbums()
             persistLibraryCache()
+            loadServerPlaylists()
         } finally {
             if (showLoader) _loading.value = false
         }
     }
+
+    /** Charge les playlists des serveurs actifs (lecture seule), en parallèle. Échec serveur → ignoré. */
+    suspend fun loadServerPlaylists() {
+        val active = _servers.value.filter { it.active }.mapNotNull { providers[it.id] }
+        val all = coroutineScope {
+            active.map { p -> async { runCatching { p.playlists() }.getOrNull() } }.awaitAll()
+        }
+        _serverPlaylists.value = all.filterNotNull().flatten()
+    }
+
+    /** Morceaux d'une playlist serveur — routés vers le provider d'origine (lecture seule). */
+    suspend fun serverPlaylistTracks(playlist: ServerPlaylist): List<Track> =
+        providers[playlist.serverId]?.let { runCatching { it.playlistTracks(playlist.id) }.getOrDefault(emptyList()) } ?: emptyList()
 
     /** Réécrit le cache local des métadonnées (albums par serveur) sur disque, en tâche de fond. */
     private fun persistLibraryCache() {

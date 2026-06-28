@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
+import ch.kohlnet.sillon.data.ServerPlaylist
 import ch.kohlnet.sillon.data.PlayHistory
 import ch.kohlnet.sillon.data.ServerType
 import ch.kohlnet.sillon.data.Track
@@ -245,6 +246,7 @@ fun BibliothequeScreen() {
     var selectedAlbum by remember { mutableStateOf<Album?>(null) }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var selectedPlaylist by remember { mutableStateOf<String?>(null) }
+    var selectedServerPlaylist by remember { mutableStateOf<ServerPlaylist?>(null) }
     val gridState = rememberLazyGridState()   // hissés → survivent à l'ouverture d'un détail
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -257,6 +259,9 @@ fun BibliothequeScreen() {
     }
     selectedPlaylist?.let {
         PlaylistDetailScreen(it, onBack = { selectedPlaylist = null }); return
+    }
+    selectedServerPlaylist?.let {
+        ServerPlaylistDetailScreen(it, onBack = { selectedServerPlaylist = null }); return
     }
     if (browse) {
         BrowseScreen(onBack = { browse = false }); return
@@ -319,7 +324,7 @@ fun BibliothequeScreen() {
 
         // Les playlists sont LOCALES → indépendantes des albums serveur (affichées même biblio vide).
         if (mode == LibraryMode.PLAYLISTS) {
-            PlaylistsListScreen(onOpen = { selectedPlaylist = it })
+            PlaylistsListScreen(onOpenLocal = { selectedPlaylist = it }, onOpenServer = { selectedServerPlaylist = it })
         } else if (albums.isEmpty()) {
             if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else when (mode) {
@@ -457,7 +462,7 @@ private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
     }
 }
 
-private enum class FavMode { ALBUMS, TRACKS }
+private enum class FavMode { ALBUMS, TRACKS, PLAYLISTS }
 
 @Composable
 fun FavorisScreen() {
@@ -475,10 +480,18 @@ fun FavorisScreen() {
 
     var mode by rememberSaveable { mutableStateOf(FavMode.ALBUMS) }
     var selected by remember { mutableStateOf<Album?>(null) }
+    var selectedPlaylist by remember { mutableStateOf<String?>(null) }
+    var selectedServerPlaylist by remember { mutableStateOf<ServerPlaylist?>(null) }
     val sel = selected
     if (sel != null) {
         AlbumDetailScreen(sel, onBack = { selected = null })
         return
+    }
+    selectedPlaylist?.let {
+        PlaylistDetailScreen(it, onBack = { selectedPlaylist = null }); return
+    }
+    selectedServerPlaylist?.let {
+        ServerPlaylistDetailScreen(it, onBack = { selectedServerPlaylist = null }); return
     }
 
     Column(
@@ -490,21 +503,28 @@ fun FavorisScreen() {
     ) {
         Text(str(S.FAVORIS), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
         Spacer(Modifier.height(Sillon.spacing.m))
-        // Deux boutons : Albums préférés / Pistes préférées — sépare favoris albums et favoris titres.
+        // Trois boutons : Albums préférés / Pistes préférées / Playlists (favorites).
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             SegmentedButton(
                 selected = mode == FavMode.ALBUMS,
                 onClick = { mode = FavMode.ALBUMS },
-                shape = SegmentedButtonDefaults.itemShape(0, 2),
+                shape = SegmentedButtonDefaults.itemShape(0, 3),
             ) {
                 Text(str(S.ALBUMS_PREFERES), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
             SegmentedButton(
                 selected = mode == FavMode.TRACKS,
                 onClick = { mode = FavMode.TRACKS },
-                shape = SegmentedButtonDefaults.itemShape(1, 2),
+                shape = SegmentedButtonDefaults.itemShape(1, 3),
             ) {
                 Text(str(S.PISTES_PREFEREES), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            }
+            SegmentedButton(
+                selected = mode == FavMode.PLAYLISTS,
+                onClick = { mode = FavMode.PLAYLISTS },
+                shape = SegmentedButtonDefaults.itemShape(2, 3),
+            ) {
+                Text(str(S.PLAYLISTS), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
         }
         Spacer(Modifier.height(Sillon.spacing.m))
@@ -572,6 +592,11 @@ fun FavorisScreen() {
                         }
                     }
                 }
+            FavMode.PLAYLISTS ->
+                FavoritePlaylistsList(
+                    onOpenLocal = { selectedPlaylist = it },
+                    onOpenServer = { selectedServerPlaylist = it },
+                )
         }
     }
 }

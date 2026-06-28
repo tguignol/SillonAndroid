@@ -1,12 +1,15 @@
 package ch.kohlnet.sillon.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -64,10 +67,32 @@ object Playlists {
     /** Playlists, les plus RÉCEMMENT MODIFIÉES d'abord (façon iOS `sort: updatedAt reverse`). */
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
 
+    /** Clés des playlists mises en FAVORI (locales ET serveur) — cf. [favKeyLocal] / [favKeyServer]. */
+    private val KEY_FAV = stringPreferencesKey("favoritePlaylistKeys")
+    private val _favoriteKeys = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteKeys: StateFlow<Set<String>> = _favoriteKeys.asStateFlow()
+
+    fun favKeyLocal(id: String) = "loc/$id"
+    fun favKeyServer(serverId: String, id: String) = "srv/$serverId/$id"
+
     fun init(context: Context) {
         appContext = context.applicationContext
         scope.launch { _playlists.value = sorted(PlaylistStore.load(context.applicationContext)) }
+        scope.launch {
+            val raw = context.applicationContext.dataStore.data.first()[KEY_FAV]
+            _favoriteKeys.value = raw?.split("\n")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+        }
     }
+
+    /** (Dé)favorise une playlist par sa clé. Persiste. */
+    fun toggleFavorite(key: String) {
+        val cur = _favoriteKeys.value
+        val updated = if (key in cur) cur - key else cur + key
+        _favoriteKeys.value = updated
+        appContext?.let { ctx -> scope.launch { ctx.dataStore.edit { it[KEY_FAV] = updated.joinToString("\n") } } }
+    }
+
+    fun isFavorite(key: String) = key in _favoriteKeys.value
 
     /** Crée une playlist (nom par défaut si vide) et la renvoie. */
     fun create(name: String): Playlist {
