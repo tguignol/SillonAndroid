@@ -62,7 +62,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.AppLanguage
 import ch.kohlnet.sillon.data.AppSettings
 import ch.kohlnet.sillon.data.AppearanceMode
@@ -160,39 +162,8 @@ fun ServerConnectionScreen() {
 
         Spacer(Modifier.height(Sillon.spacing.s))
 
-        // — Serveurs configurés (repliable + rafraîchissement global) —
-        CollapsibleSection(
-            title = str(S.SERVEURS),
-            trailing = {
-                // Bouton STABLE (spinner à l'intérieur) ; clic propre, ne replie pas la section.
-                IconButton(onClick = { MusicRepository.refresh() }, enabled = !refreshing) {
-                    if (refreshing) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Sillon.colors.accentCuivre)
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = str(S.RAFRAICHIR), tint = Sillon.colors.texteSourdine)
-                    }
-                }
-            },
-        ) {
-            if (servers.isEmpty()) {
-                Text(str(S.AUCUN_SERVEUR), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
-            } else {
-                servers.forEachIndexed { i, server ->
-                    ServerRow(server, i, refreshingServerId, onEdit = { editing = server })
-                }
-                if (servers.size > 1) {
-                    Text(
-                        str(S.PRIORITE_HINT),
-                        style = Sillon.type.technique,
-                        color = Sillon.colors.texteSourdine,
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(Sillon.spacing.s))
-
-        // — Ajouter un serveur (repliable, fermé par défaut) —
+        // — Ajouter un serveur (repliable) — PLACÉ AU-DESSUS de la liste des serveurs enregistrés :
+        // c'est l'action principale, surtout tant qu'aucun serveur n'est encore configuré.
         CollapsibleSection(str(S.AJOUTER_SERVEUR), initiallyExpanded = false) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 ServerType.entries.forEachIndexed { i, t ->
@@ -200,7 +171,19 @@ fun ServerConnectionScreen() {
                         selected = type == t,
                         onClick = { type = t },
                         shape = SegmentedButtonDefaults.itemShape(i, ServerType.entries.size),
-                    ) { Text(t.label, style = Sillon.type.corps) }
+                        // Libellé sur UNE seule ligne (typo réduite + ellipse de secours) : « Subsonic /
+                        // Navidrome » est long et passait sinon sur 2 lignes → segment plus haut, décalé
+                        // par rapport aux autres. Ainsi les 3 segments gardent la même hauteur.
+                        label = {
+                            Text(
+                                t.label,
+                                style = Sillon.type.corps.copy(fontSize = 14.sp),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                    )
                 }
             }
             if (type == ServerType.LOCAL) {
@@ -253,6 +236,38 @@ fun ServerConnectionScreen() {
                     s.message, style = Sillon.type.corps, color = MaterialTheme.colorScheme.error,
                 )
                 ConnectionStatus.Idle -> {}
+            }
+        }
+
+        Spacer(Modifier.height(Sillon.spacing.s))
+
+        // — Serveurs configurés (repliable + rafraîchissement global) —
+        CollapsibleSection(
+            title = str(S.SERVEURS),
+            trailing = {
+                // Bouton STABLE (spinner à l'intérieur) ; clic propre, ne replie pas la section.
+                IconButton(onClick = { MusicRepository.refresh() }, enabled = !refreshing) {
+                    if (refreshing) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Sillon.colors.accentCuivre)
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = str(S.RAFRAICHIR), tint = Sillon.colors.texteSourdine)
+                    }
+                }
+            },
+        ) {
+            if (servers.isEmpty()) {
+                Text(str(S.AUCUN_SERVEUR), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+            } else {
+                servers.forEachIndexed { i, server ->
+                    ServerRow(server, i, refreshingServerId, onEdit = { editing = server })
+                }
+                if (servers.size > 1) {
+                    Text(
+                        str(S.PRIORITE_HINT),
+                        style = Sillon.type.technique,
+                        color = Sillon.colors.texteSourdine,
+                    )
+                }
             }
         }
     }
