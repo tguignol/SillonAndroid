@@ -6,7 +6,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -41,6 +43,7 @@ data class Album(
 }
 
 /** Morceau côté UI. `serverId` = serveur d'origine. Champs qualité audio (codec/fréquence/profondeur/débit). */
+@Serializable
 data class Track(
     val id: String,
     val title: String,
@@ -172,6 +175,7 @@ object MusicRepository {
         initialized = true
         appContext = context.applicationContext
         scope.launch { _favorites.value = FavoritesStore.load(context.applicationContext) }
+        scope.launch { TrackCache.load(context.applicationContext).forEach { trackCache[it.key] = it } }
         scope.launch {
             val raw = context.applicationContext.dataStore.data.first()[KEY_FAV_TRACKS]
             _favoriteTrackKeys.value = raw?.split("\n")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
@@ -287,6 +291,7 @@ object MusicRepository {
         scope.launch {
             providers.remove(id)?.close()
             serverAlbums.remove(id)
+            clearTrackCacheFor(id)
             val updated = _servers.value.filterNot { it.id == id }
             _servers.value = updated
             appContext?.let { ServerStore.save(it, updated) }
@@ -357,6 +362,10 @@ object MusicRepository {
     /** Cache des albums BRUTS par serveur (avant dédup) → (dés)activer/réordonner SANS re-télécharger. */
     private val serverAlbums = mutableMapOf<String, List<Album>>()
 
+    /** Cache LOCAL des pistes par album (clé `serverId/albumId`) → ouverture d'album instantanée au 2ᵉ accès. */
+    private val trackCache = mutableMapOf<String, TrackCache.Entry>()
+    private var trackPersistJob: Job? = null
+
     /** Recharge TOUTE la bibliothèque des serveurs actifs (paginée) et met à jour le cache par serveur. */
     suspend fun loadAlbums() {
         // Loader BLOQUANT seulement si rien n'est encore affiché (1er lancement, cache vide). Si le cache
@@ -402,6 +411,8 @@ object MusicRepository {
             _refreshing.value = true
             try {
                 rebuildProviders()
+                trackCache.clear()      // pistes re-téléchargées au prochain accès (fraîcheur)
+                persistTrackCache()
                 loadAlbums()
             } finally {
                 _refreshing.value = false
@@ -423,6 +434,7 @@ object MusicRepository {
                         runCatching { p.allAlbums() }.getOrNull()?.let { serverAlbums[id] = it }
                     }
                 }
+                clearTrackCacheFor(id)  // pistes de ce serveur re-téléchargées au prochain accès
                 recomputeAlbums()
                 persistLibraryCache()
             } finally {
@@ -437,9 +449,52 @@ object MusicRepository {
     /** Albums d'un artiste (par nom), agrégés. */
     suspend fun albumsByArtistName(name: String): List<Album> = aggregate { it.albumsByArtistName(name) }
 
-    /** Morceaux d'un album — routés vers le provider du serveur d'origine. */
-    suspend fun tracks(album: Album): List<Track> =
-        providers[album.serverId]?.let { runCatching { it.tracks(album.id) }.getOrDefault(emptyList()) } ?: emptyList()
+    /**
+     * Morceaux d'un album — routés vers le provider du serveur d'origine.
+     * Sert le CACHE LOCAL instantanément si présent (ouverture d'album immédiate au 2ᵉ accès) ; sinon va
+     * au réseau et met en cache. Les tracklists étant stables, on ne re-télécharge PAS à chaque ouverture :
+     * la fraîcheur est reprise par « Rafraîchir » (qui purge le cache pistes). Le streaming, lui, va
+     * toujours chercher le flux directement sur le serveur.
+     */
+    suspend fun tracks(album: Album): List<Track> {
+        val key = "${album.serverId}/${album.id}"
+        trackCache[key]?.let { hit ->
+            // Cache touché → on rafraîchit juste l'horodatage LRU (persistance débouncée).
+            trackCache[key] = hit.copy(lastAccess = System.currentTimeMillis())
+            persistTrackCache()
+            return hit.tracks
+        }
+        val fresh = providers[album.serverId]?.let { runCatching { it.tracks(album.id) }.getOrNull() } ?: emptyList()
+        if (fresh.isNotEmpty()) {
+            trackCache[key] = TrackCache.Entry(key, fresh, System.currentTimeMillis())
+            evictTrackCacheIfNeeded()
+            persistTrackCache()
+        }
+        return fresh
+    }
+
+    /** Borne le cache pistes (LRU) : retire les albums les moins récemment consultés au-delà du plafond. */
+    private fun evictTrackCacheIfNeeded() {
+        val over = trackCache.size - TrackCache.MAX_ALBUMS
+        if (over <= 0) return
+        trackCache.values.sortedBy { it.lastAccess }.take(over).forEach { trackCache.remove(it.key) }
+    }
+
+    /** Réécrit le cache pistes sur disque, DÉBOUNCÉ (coalesce les rafales lors d'un défilement). */
+    private fun persistTrackCache() {
+        val ctx = appContext ?: return
+        trackPersistJob?.cancel()
+        trackPersistJob = scope.launch {
+            delay(2000)
+            TrackCache.save(ctx, trackCache.values.toList())
+        }
+    }
+
+    /** Purge les pistes en cache d'un serveur (clé préfixée `serverId/`) → re-téléchargées au prochain accès. */
+    private fun clearTrackCacheFor(serverId: String) {
+        trackCache.keys.filter { it.startsWith("$serverId/") }.forEach { trackCache.remove(it) }
+        persistTrackCache()
+    }
 
     /** Format audio représentatif d'un album (1re piste), récupéré à la volée et MIS EN CACHE. */
     private val formatCache = mutableMapOf<String, String?>()
