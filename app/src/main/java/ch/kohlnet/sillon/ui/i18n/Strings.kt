@@ -19,6 +19,7 @@ enum class S {
     EGALISEUR, ACTIVE, INACTIF, REINITIALISER, BANDES, FILE_ATTENTE, VIDER,
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
+    TITRES_PLUS_ECOUTES, ALBUMS_RECEMMENT, PLUS_ECOUTES,
     BIBLIOTHEQUE_VIDE, AUCUN_FAVORI, CHARGEMENT, ALBUMS, ARTISTES,
     OUT_BLUETOOTH, OUT_WIRED, OUT_SPEAKER,
 }
@@ -87,6 +88,9 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
     S.ALBUMS_PREFERES to tr("Albums préférés", "Favorite albums", "Lieblingsalben", "Album preferiti", "Álbumes favoritos", "Álbuns favoritos", "Albumet e preferuara", "Omiljeni albumi", "Albums preferids", "Favori albümler"),
     S.ALBUMS_ALEATOIRES to tr("Albums aléatoires", "Random albums", "Zufällige Alben", "Album casuali", "Álbumes aleatorios", "Álbuns aleatórios", "Albume të rastësishme", "Nasumični albumi", "Albums casuals", "Rastgele albümler"),
     S.REDECOUVRIR to tr("Redécouvrir des albums", "Rediscover albums", "Alben wiederentdecken", "Riscopri album", "Redescubrir álbumes", "Redescobrir álbuns", "Rizbulo albume", "Ponovo otkrij albume", "Redescovrir albums", "Albümleri yeniden keşfet"),
+    S.TITRES_PLUS_ECOUTES to tr("Titres les plus écoutés", "Most played tracks", "Meistgespielte Titel", "Brani più ascoltati", "Canciones más escuchadas", "Faixas mais ouvidas", "Këngët më të dëgjuara", "Najslušanije pesme", "Toccs ils pli tadlads", "En çok çalınan parçalar"),
+    S.ALBUMS_RECEMMENT to tr("Albums écoutés récemment", "Recently played albums", "Kürzlich gehörte Alben", "Album ascoltati di recente", "Álbumes escuchados recientemente", "Álbuns ouvidos recentemente", "Albumet e dëgjuara së fundmi", "Nedavno slušani albumi", "Albums tadlads dacurt", "Son çalınan albümler"),
+    S.PLUS_ECOUTES to tr("Les plus écoutés", "Most played", "Meistgehört", "I più ascoltati", "Los más escuchados", "Os mais ouvidos", "Më të dëgjuarit", "Najslušaniji", "Ils pli tadlads", "En çok çalınanlar"),
     S.BIBLIOTHEQUE_VIDE to tr(
         "Aucun album.\nConnecte-toi à un serveur dans Réglages.",
         "No albums.\nConnect to a server in Settings.",

@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items as lazyRowItems
+import androidx.compose.foundation.lazy.itemsIndexed as lazyRowItemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -65,7 +66,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
+import ch.kohlnet.sillon.data.PlayHistory
 import ch.kohlnet.sillon.data.ServerType
+import ch.kohlnet.sillon.data.Track
+import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.AzScrollIndex
 import ch.kohlnet.sillon.ui.components.ServerMark
 import ch.kohlnet.sillon.ui.components.SourceBadge
@@ -84,6 +88,9 @@ import kotlin.math.abs
 
 private val CARD = 150.dp
 
+/** Normalise un libellé pour la correspondance (minuscules, espaces compactés). */
+private fun normKey(s: String): String = s.trim().lowercase().replace(Regex("\\s+"), " ")
+
 /**
  * Accueil — sections en CARROUSELS horizontaux (façon iOS `HomeView`) : Albums récents, Albums
  * préférés, Albums aléatoires, Redécouvrir. Les sections aléatoires se RE-MÉLANGENT au surscroll
@@ -94,6 +101,8 @@ fun AccueilScreen() {
     val albums by MusicRepository.albums.collectAsState()
     val favorites by MusicRepository.visibleFavorites.collectAsState()
     val loading by MusicRepository.loading.collectAsState()
+    val stats by PlayHistory.stats.collectAsState()
+    val servers by MusicRepository.servers.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
 
@@ -107,6 +116,34 @@ fun AccueilScreen() {
     var aleatoires by remember(albums) { mutableStateOf(albums.shuffled().take(15)) }
     var redecouvrir by remember(albums) { mutableStateOf(albums.shuffled().take(15)) }
     val onClick: (Album) -> Unit = { selected = it }
+
+    // Sections « écoutes » dérivées de l'historique, filtrées aux serveurs ACTIFS.
+    val mostPlayedTracks = remember(stats, servers) {
+        val activeIds = servers.filter { it.active }.map { it.id }.toSet()
+        stats.filter { it.count > 0 && it.serverId in activeIds }
+            .sortedByDescending { it.count }
+            .take(15)
+            .map { it.toTrack() }
+    }
+    // Albums reliés à l'historique → résolus dans la bibliothèque ACTIVE par TITRE normalisé (l'artiste
+    // des pistes peut manquer côté serveur) ; donc déjà filtrés par serveur actif.
+    val albumsByTitle = remember(albums) { albums.groupBy { normKey(it.title) } }
+    val recentlyPlayedAlbums = remember(stats, albumsByTitle) {
+        stats.filter { it.album.isNotBlank() }
+            .groupBy { normKey(it.album) }
+            .mapNotNull { (k, v) -> albumsByTitle[k]?.firstOrNull()?.let { it to v.maxOf { s -> s.lastPlayedAt } } }
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .take(15)
+    }
+    val mostPlayedAlbums = remember(stats, albumsByTitle) {
+        stats.filter { it.album.isNotBlank() }
+            .groupBy { normKey(it.album) }
+            .mapNotNull { (k, v) -> albumsByTitle[k]?.firstOrNull()?.let { it to v.sumOf { s -> s.count } } }
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .take(15)
+    }
 
     Column(
         modifier = Modifier
@@ -127,6 +164,17 @@ fun AccueilScreen() {
             if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else {
             Section(str(S.ALBUMS_RECENTS)) { AlbumCarousel(albums.take(30), onClick) }
+            if (mostPlayedTracks.isNotEmpty()) {
+                Section(str(S.TITRES_PLUS_ECOUTES)) {
+                    TrackCarousel(mostPlayedTracks) { i -> PlayerController.play(mostPlayedTracks, i) }
+                }
+            }
+            if (recentlyPlayedAlbums.isNotEmpty()) {
+                Section(str(S.ALBUMS_RECEMMENT)) { AlbumCarousel(recentlyPlayedAlbums, onClick) }
+            }
+            if (mostPlayedAlbums.isNotEmpty()) {
+                Section(str(S.PLUS_ECOUTES)) { AlbumCarousel(mostPlayedAlbums, onClick) }
+            }
             if (favorites.isNotEmpty()) {
                 Section(str(S.ALBUMS_PREFERES)) { AlbumCarousel(favorites, onClick) }
             }
@@ -410,6 +458,55 @@ private fun AlbumCarousel(albums: List<Album>, onClick: (Album) -> Unit, onReshu
     ) {
         lazyRowItems(albums, key = { it.id }) { album ->
             AlbumCard(album, Modifier.width(CARD)) { onClick(album) }
+        }
+    }
+}
+
+/** Carrousel horizontal de pistes (les plus écoutées). Tap = lecture de la liste à partir de l'index. */
+@Composable
+private fun TrackCarousel(tracks: List<Track>, onPlay: (Int) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = Sillon.spacing.xl),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+    ) {
+        lazyRowItemsIndexed(tracks, key = { _, t -> t.serverId + "/" + t.id }) { i, track ->
+            TrackCard(track, Modifier.width(CARD)) { onPlay(i) }
+        }
+    }
+}
+
+/** Carte de piste (pochette + titre + artiste), façon iOS `TrackCard`. */
+@Composable
+private fun TrackCard(track: Track, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+        modifier = modifier.clickable(onClick = onClick),
+    ) {
+        AsyncImage(
+            model = track.coverUrl,
+            contentDescription = track.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+                .background(placeholderBrush(track.title.ifBlank { track.id })),
+        )
+        Text(
+            text = track.title,
+            style = Sillon.type.corps,
+            color = Sillon.colors.texteIvoire,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (track.artist.isNotBlank()) {
+            Text(
+                text = track.artist,
+                style = Sillon.type.corps.copy(fontSize = 13.sp),
+                color = Sillon.colors.texteSourdine,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

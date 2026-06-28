@@ -11,6 +11,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import ch.kohlnet.sillon.data.PlayHistory
 import ch.kohlnet.sillon.data.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +65,9 @@ object PlayerController {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            _current.value = _queue.value.getOrNull(controller?.currentMediaItemIndex ?: -1)
+            val t = _queue.value.getOrNull(controller?.currentMediaItemIndex ?: -1)
+            _current.value = t
+            if (t != null) PlayHistory.record(t) // historique d'écoute (accueil : plus écoutés / récemment écoutés)
         }
 
         override fun onShuffleModeEnabledChanged(enabled: Boolean) {
