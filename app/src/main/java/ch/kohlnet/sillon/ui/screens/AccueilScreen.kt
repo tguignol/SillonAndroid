@@ -473,10 +473,14 @@ fun AlbumGrid(albums: List<Album>, modifier: Modifier = Modifier, onClick: (Albu
 @Composable
 private fun AlbumCard(album: Album, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val servers by MusicRepository.servers.collectAsState()
-    val activeCount = servers.count { it.active }
-    val sourceIds = album.sources.ifEmpty { listOf(album.serverId) }
-    val sourceTypes = sourceIds.mapNotNull { id -> servers.firstOrNull { it.id == id }?.type }
-    val showBadge = activeCount > 1 && sourceTypes.isNotEmpty()
+    // Sources ACTIVES de CET album (la dédup peut le placer sur plusieurs serveurs).
+    val activeSourceIds = (album.sources.ifEmpty { listOf(album.serverId) })
+        .filter { id -> servers.any { it.id == id && it.active } }
+        .distinct()
+    val sourceTypes = activeSourceIds.mapNotNull { id -> servers.firstOrNull { it.id == id }?.type }.distinct()
+    // Badge UNIQUEMENT si l'album est réellement sur PLUSIEURS sources actives.
+    // Source unique (ex. Jellyfin seul, Navidrome désactivé) → PAS d'icône.
+    val showBadge = activeSourceIds.size > 1
 
     Column(
         verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
@@ -495,8 +499,8 @@ private fun AlbumCard(album: Album, modifier: Modifier = Modifier, onClick: () -
             )
             if (showBadge) {
                 SourceBadge(
-                    types = sourceTypes.distinct(),
-                    sourceCount = sourceIds.size,
+                    types = sourceTypes,
+                    sourceCount = activeSourceIds.size,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(Sillon.spacing.xs),
