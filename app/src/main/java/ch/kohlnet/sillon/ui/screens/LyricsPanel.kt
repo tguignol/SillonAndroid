@@ -30,14 +30,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.LyricsTranslator
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.data.TrackLyrics
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.theme.Sillon
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Langue cible de la traduction = langue de l'app (français). */
@@ -128,11 +131,13 @@ private fun LyricsList(lyrics: TrackLyrics, positionMs: Long, translations: Map<
     val active = if (lyrics.synced) lyrics.activeLineIndex(positionMs / 1000.0) else null
     val listState = rememberLazyListState()
 
-    LaunchedEffect(active) {
+    // Re-centre aussi quand la TRADUCTION (dé)s'active : les lignes changent de hauteur, donc la ligne
+    // en cours doit être recentrée pour rester au MILIEU de la hauteur à tout moment.
+    LaunchedEffect(active, translations) {
         val idx = active ?: return@LaunchedEffect
+        delay(48) // laisse le layout se recalculer (hauteurs de lignes) avant de mesurer pour centrer
         runCatching {
-            // Centrer verticalement la ligne en cours (façon Apple Music) au lieu de la coller en haut
-            // → elle ne vient plus chevaucher le bouton « Traduire » resté en haut.
+            // Centrer verticalement la ligne en cours (façon Apple Music) au lieu de la coller en haut.
             val info = listState.layoutInfo
             val viewportH = info.viewportSize.height
             val itemH = info.visibleItemsInfo.firstOrNull { it.index == idx }?.size ?: 0
@@ -147,18 +152,28 @@ private fun LyricsList(lyrics: TrackLyrics, positionMs: Long, translations: Map<
         contentPadding = PaddingValues(vertical = Sillon.spacing.xxl, horizontal = Sillon.spacing.s),
     ) {
         itemsIndexed(lyrics.lines) { i, line ->
+            val isActive = i == active
             Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs)) {
                 Text(
                     text = line.text.ifBlank { "♪" },
-                    style = if (i == active) Sillon.type.paroleActive else Sillon.type.corps,
+                    style = if (isActive) Sillon.type.paroleActive else Sillon.type.corps,
                     color = when {
-                        i == active -> Sillon.colors.accentCuivre
+                        isActive -> Sillon.colors.accentCuivre
                         lyrics.synced -> Sillon.colors.texteSourdine
                         else -> Sillon.colors.texteIvoire
                     },
                 )
                 translations[i]?.takeIf { it.isNotBlank() }?.let {
-                    Text(text = it, style = Sillon.type.corps, color = Sillon.colors.signalTeal)
+                    Text(
+                        text = it,
+                        // Traduction de la ligne LUE : plus grande + semi-grasse. Lignes NON lues :
+                        // un peu plus petite → la ligne en cours ressort.
+                        style = if (isActive)
+                            Sillon.type.corps.copy(fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                        else
+                            Sillon.type.corps.copy(fontSize = 14.sp),
+                        color = Sillon.colors.signalTeal,
+                    )
                 }
             }
         }
