@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -74,6 +76,7 @@ fun ServerConnectionScreen() {
     val servers by MusicRepository.servers.collectAsState()
     val status by MusicRepository.status.collectAsState()
     val refreshing by MusicRepository.refreshing.collectAsState()
+    val refreshingServerId by MusicRepository.refreshingServerId.collectAsState()
 
     var type by rememberSaveable { mutableStateOf(ServerType.JELLYFIN) }
     var url by rememberSaveable { mutableStateOf("") }
@@ -116,27 +119,32 @@ fun ServerConnectionScreen() {
 
         Spacer(Modifier.height(Sillon.spacing.s))
 
-        // — Serveurs configurés (avec rafraîchissement) —
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                str(S.SERVEURS),
-                style = Sillon.type.displaySmall,
-                color = Sillon.colors.texteSourdine,
-                modifier = Modifier.weight(1f),
-            )
-            // Bouton STABLE (le spinner reste à l'intérieur) → ne réinitialise pas l'état des sections.
-            IconButton(onClick = { MusicRepository.refresh() }, enabled = !refreshing) {
-                if (refreshing) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Sillon.colors.accentCuivre)
-                } else {
-                    Icon(Icons.Filled.Refresh, contentDescription = str(S.RAFRAICHIR), tint = Sillon.colors.texteSourdine)
+        // — Serveurs configurés (repliable + rafraîchissement global) —
+        CollapsibleSection(
+            title = str(S.SERVEURS),
+            trailing = {
+                // Bouton STABLE (spinner à l'intérieur) ; clic propre, ne replie pas la section.
+                IconButton(onClick = { MusicRepository.refresh() }, enabled = !refreshing) {
+                    if (refreshing) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Sillon.colors.accentCuivre)
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = str(S.RAFRAICHIR), tint = Sillon.colors.texteSourdine)
+                    }
+                }
+            },
+        ) {
+            if (servers.isEmpty()) {
+                Text(str(S.AUCUN_SERVEUR), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+            } else {
+                servers.forEachIndexed { i, server -> ServerRow(server, i, refreshingServerId) }
+                if (servers.size > 1) {
+                    Text(
+                        str(S.PRIORITE_HINT),
+                        style = Sillon.type.technique,
+                        color = Sillon.colors.texteSourdine,
+                    )
                 }
             }
-        }
-        if (servers.isEmpty()) {
-            Text(str(S.AUCUN_SERVEUR), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
-        } else {
-            servers.forEach { server -> ServerRow(server) }
         }
 
         Spacer(Modifier.height(Sillon.spacing.s))
@@ -205,6 +213,7 @@ fun ServerConnectionScreen() {
 private fun CollapsibleSection(
     title: String,
     initiallyExpanded: Boolean = true,
+    trailing: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
@@ -225,6 +234,7 @@ private fun CollapsibleSection(
                 color = Sillon.colors.texteSourdine,
                 modifier = Modifier.weight(1f),
             )
+            trailing()
             Icon(
                 Icons.Filled.ExpandMore,
                 contentDescription = null,
@@ -273,16 +283,35 @@ private fun LanguagePicker() {
 }
 
 @Composable
-private fun ServerRow(server: ServerConfig) {
+private fun ServerRow(server: ServerConfig, index: Int, refreshingServerId: String?) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
     ) {
         ServerMark(server.type, Modifier.size(26.dp))
         Column(Modifier.weight(1f)) {
             Text(server.name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire)
             Text(server.baseUrl, style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+        }
+        // Monter en priorité (le serveur du haut gagne sur les doublons).
+        IconButton(onClick = { MusicRepository.moveServer(server.id, up = true) }, enabled = index > 0) {
+            Icon(
+                Icons.Filled.KeyboardArrowUp,
+                contentDescription = "Monter en priorité",
+                tint = if (index > 0) Sillon.colors.texteSourdine else Sillon.colors.texteSourdine.copy(alpha = 0.3f),
+            )
+        }
+        // Rafraîchir CE serveur (reconnexion + relecture).
+        IconButton(
+            onClick = { MusicRepository.refreshServer(server.id) },
+            enabled = refreshingServerId == null && server.active,
+        ) {
+            if (refreshingServerId == server.id) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Sillon.colors.accentCuivre)
+            } else {
+                Icon(Icons.Filled.Refresh, contentDescription = "Rafraîchir ce serveur", tint = Sillon.colors.texteSourdine)
+            }
         }
         Switch(
             checked = server.active,

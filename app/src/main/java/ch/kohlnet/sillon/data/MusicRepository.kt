@@ -111,9 +111,13 @@ object MusicRepository {
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
 
-    /** Vrai pendant un rechargement manuel de la bibliothèque (bouton « Rafraîchir »). */
+    /** Vrai pendant un rechargement GLOBAL de la bibliothèque (bouton « Rafraîchir »). */
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
+    /** Id du serveur en cours de rafraîchissement INDIVIDUEL (ou null). */
+    private val _refreshingServerId = MutableStateFlow<String?>(null)
+    val refreshingServerId: StateFlow<String?> = _refreshingServerId.asStateFlow()
 
     /** À appeler une fois au lancement (MainActivity). Restaure serveurs + favoris. */
     fun init(context: Context) {
@@ -169,6 +173,21 @@ object MusicRepository {
         }
     }
 
+    /** Monte/descend un serveur dans l'ordre de PRIORITÉ d'affichage (dédup → le plus haut gagne). */
+    fun moveServer(id: String, up: Boolean) {
+        scope.launch {
+            val list = _servers.value.toMutableList()
+            val i = list.indexOfFirst { it.id == id }
+            if (i < 0) return@launch
+            val j = if (up) i - 1 else i + 1
+            if (j < 0 || j >= list.size) return@launch
+            list[i] = list[j].also { list[j] = list[i] }
+            _servers.value = list
+            appContext?.let { ServerStore.save(it, list) }
+            loadAlbums()
+        }
+    }
+
     /** Active/désactive un serveur dans la bibliothèque agrégée. */
     fun setActive(id: String, active: Boolean) {
         scope.launch {
@@ -202,7 +221,7 @@ object MusicRepository {
         _albums.value = aggregate { it.allAlbums() }
     }
 
-    /** Rechargement MANUEL (bouton « Rafraîchir ») : recrée les providers actifs et relit la bibliothèque. */
+    /** Rechargement GLOBAL (bouton « Rafraîchir ») : recrée les providers actifs et relit la bibliothèque. */
     fun refresh() {
         scope.launch {
             _refreshing.value = true
@@ -211,6 +230,22 @@ object MusicRepository {
                 loadAlbums()
             } finally {
                 _refreshing.value = false
+            }
+        }
+    }
+
+    /** Rechargement d'UN serveur : recrée son provider (reconnexion) puis relit la bibliothèque agrégée. */
+    fun refreshServer(id: String) {
+        scope.launch {
+            _refreshingServerId.value = id
+            try {
+                _servers.value.firstOrNull { it.id == id && it.active }?.let { cfg ->
+                    providers.remove(id)?.close()
+                    providers[id] = providerFor(cfg)
+                }
+                loadAlbums()
+            } finally {
+                _refreshingServerId.value = null
             }
         }
     }
@@ -229,10 +264,15 @@ object MusicRepository {
     suspend fun lyrics(track: Track): TrackLyrics? =
         providers[track.serverId]?.let { runCatching { it.lyrics(track.id) }.getOrNull() }
 
-    /** Exécute `block` sur chaque provider actif, fusionne et DÉDOUBLONNE inter-serveurs. */
+    /**
+     * Exécute `block` sur chaque provider actif (DANS L'ORDRE DE PRIORITÉ = ordre de la liste serveurs),
+     * fusionne et DÉDOUBLONNE inter-serveurs. La dédup garde le 1er rencontré → le serveur le plus haut
+     * dans la liste gagne sur les doublons (cf. [moveServer]).
+     */
     private suspend fun aggregate(block: suspend (ServerProvider) -> List<Album>): List<Album> {
+        val ordered = _servers.value.filter { it.active }.mapNotNull { providers[it.id] }
         val result = mutableListOf<Album>()
-        for (p in providers.values.toList()) {
+        for (p in ordered) {
             result += runCatching { block(p) }.getOrDefault(emptyList())
         }
         return dedup(result)
