@@ -260,8 +260,7 @@ fun ServerConnectionScreen() {
             }
         }
 
-        // — Langue —
-        Text(str(S.LANGUE), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine)
+        // — Langue : libellé + langue choisie + flèche sur la MÊME ligne (cf. LanguagePicker).
         LanguagePicker()
 
         Spacer(Modifier.height(Sillon.spacing.s))
@@ -379,8 +378,10 @@ private fun LanguagePicker() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
         ) {
+            // « Langue » à gauche (prend la place), puis langue choisie + flèche à droite, même ligne.
+            Text(str(S.LANGUE), style = Sillon.type.displaySmall, color = Sillon.colors.texteSourdine, modifier = Modifier.weight(1f))
             Icon(Icons.Filled.Language, contentDescription = null, tint = Sillon.colors.texteSourdine)
-            Text(lang.displayName, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, modifier = Modifier.weight(1f))
+            Text(lang.displayName, style = Sillon.type.corps, color = Sillon.colors.texteIvoire)
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Sillon.colors.texteSourdine)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
