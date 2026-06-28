@@ -40,8 +40,6 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -62,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.player.PlayerController
+import ch.kohlnet.sillon.ui.components.ThinSlider
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 import ch.kohlnet.sillon.ui.i18n.S
@@ -252,9 +251,10 @@ private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
-            if (t.artist.isNotBlank()) {
+            val sub = listOfNotNull(t.artist.takeIf { it.isNotBlank() }, t.album?.takeIf { it.isNotBlank() })
+            if (sub.isNotEmpty()) {
                 Text(
-                    t.artist,
+                    sub.joinToString(" · "),
                     style = Sillon.type.corps.copy(fontSize = 12.sp),
                     color = Sillon.colors.texteSourdine,
                     maxLines = 1,
@@ -264,16 +264,14 @@ private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(barTime(position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
-                Slider(
+                ThinSlider(
                     value = position.coerceIn(0L, dur).toFloat(),
                     onValueChange = { PlayerController.seekTo(it.toLong()) },
                     valueRange = 0f..dur.toFloat(),
+                    activeColor = Sillon.colors.accentCuivre,
+                    inactiveColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
+                    thumbColor = Sillon.colors.accentCuivre,
                     modifier = Modifier.weight(1f).padding(horizontal = Sillon.spacing.s),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Sillon.colors.accentCuivre,
-                        activeTrackColor = Sillon.colors.accentCuivre,
-                        inactiveTrackColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
-                    ),
                 )
                 Text("-" + barTime(dur - position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
             }

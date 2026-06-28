@@ -42,6 +42,7 @@ data class SubResponse(
     val track: Int? = null,
     val duration: Int? = null, // secondes
     val coverArt: String? = null,
+    val album: String? = null,
     val suffix: String? = null,        // codec/extension (flac, mp3…)
     val bitRate: Int? = null,          // kbps
     val samplingRate: Int? = null,     // Hz (OpenSubsonic)
@@ -149,6 +150,7 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
                 streamUrl = streamUrl(s.id, needsTranscode(s.suffix, s.bitDepth)),
                 coverUrl = coverUrl(s.coverArt ?: s.id),
                 serverId = config.id,
+                album = s.album,
                 format = s.suffix,
                 sampleRateHz = s.samplingRate,
                 bitDepthBits = s.bitDepth,

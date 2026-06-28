@@ -36,6 +36,7 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
                 streamUrl = client.streamUrl(tk.id, token),
                 coverUrl = client.coverUrl(tk.id, token),
                 serverId = config.id,
+                album = tk.album,
                 format = fileFormat(tk.container, tk.path, audio?.codec),
                 sampleRateHz = audio?.sampleRate,
                 bitDepthBits = audio?.bitDepth,

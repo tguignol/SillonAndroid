@@ -45,6 +45,7 @@ data class Track(
     val streamUrl: String,
     val coverUrl: String?,
     val serverId: String = "",
+    val album: String? = null,
     val format: String? = null,       // ex "flac", "alac", "wav"
     val sampleRateHz: Int? = null,
     val bitDepthBits: Int? = null,

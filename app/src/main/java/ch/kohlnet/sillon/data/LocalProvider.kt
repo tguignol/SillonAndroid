@@ -65,6 +65,7 @@ class LocalProvider(override val config: ServerConfig, private val context: Cont
     override suspend fun tracks(albumId: String): List<Track> = withContext(Dispatchers.IO) {
         val files = audioByAlbum[albumId] ?: return@withContext emptyList()
         val cover = coverByAlbum[albumId]
+        val albumName = scanned?.firstOrNull { it.id == albumId }?.title
         files.sortedBy { it.name?.lowercase() }.mapIndexed { i, file ->
             val meta = readMeta(file.uri)
             Track(
@@ -76,6 +77,7 @@ class LocalProvider(override val config: ServerConfig, private val context: Cont
                 streamUrl = file.uri.toString(),
                 coverUrl = cover,
                 serverId = config.id,
+                album = albumName,
                 format = file.name?.substringAfterLast('.', "")?.lowercase()?.takeIf { it.isNotEmpty() },
                 bitrateKbps = meta.bitrateKbps,
             )

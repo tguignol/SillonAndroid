@@ -40,8 +40,6 @@ import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,12 +56,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
 import ch.kohlnet.sillon.player.AudioOutputMonitor
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.SpectrumRing
+import ch.kohlnet.sillon.ui.components.ThinSlider
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.theme.Sillon
@@ -185,19 +185,29 @@ private fun ColumnScope.Controls(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+    t.album?.takeIf { it.isNotBlank() }?.let {
+        Text(
+            text = it,
+            style = Sillon.type.corps.copy(fontSize = 13.sp),
+            color = Sillon.colors.texteSourdine,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 
     Spacer(Modifier.height(Sillon.spacing.l))
 
     val dur = duration.coerceAtLeast(1L)
-    Slider(
+    ThinSlider(
         value = position.coerceIn(0L, dur).toFloat(),
         onValueChange = { PlayerController.seekTo(it.toLong()) },
         valueRange = 0f..dur.toFloat(),
-        colors = SliderDefaults.colors(
-            thumbColor = Sillon.colors.accentCuivre,
-            activeTrackColor = Sillon.colors.accentCuivre,
-            inactiveTrackColor = Sillon.colors.texteSourdine,
-        ),
+        activeColor = Sillon.colors.accentCuivre,
+        inactiveColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
+        thumbColor = Sillon.colors.accentCuivre,
+        modifier = Modifier.fillMaxWidth(),
     )
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(formatTime(position), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
@@ -276,16 +286,14 @@ private fun ColumnScope.Controls(
         IconButton(onClick = { PlayerController.adjustVolume(-0.05f) }, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Filled.VolumeDown, "Moins fort", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
         }
-        Slider(
+        ThinSlider(
             value = volume,
             onValueChange = { PlayerController.setVolume(it) },
             valueRange = 0f..1f,
-            modifier = Modifier.weight(1f),
-            colors = SliderDefaults.colors(
-                thumbColor = Sillon.colors.accentCuivre,
-                activeTrackColor = Sillon.colors.accentCuivre,
-                inactiveTrackColor = Sillon.colors.texteSourdine,
-            ),
+            activeColor = Sillon.colors.accentCuivre,
+            inactiveColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
+            thumbColor = Sillon.colors.accentCuivre,
+            modifier = Modifier.weight(1f).padding(horizontal = Sillon.spacing.s),
         )
         IconButton(onClick = { PlayerController.adjustVolume(0.05f) }, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Filled.VolumeUp, "Plus fort", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))

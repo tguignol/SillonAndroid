@@ -66,6 +66,7 @@ data class JellyfinTrack(
     @SerialName("IndexNumber") val index: Int? = null,
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("Artists") val artists: List<String>? = null,
+    @SerialName("Album") val album: String? = null,
     @SerialName("Container") val container: String? = null,
     @SerialName("Path") val path: String? = null,
     @SerialName("MediaStreams") val mediaStreams: List<JellyfinMediaStream>? = null,
