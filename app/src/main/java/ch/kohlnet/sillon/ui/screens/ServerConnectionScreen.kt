@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -42,6 +43,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -82,7 +84,19 @@ fun ServerConnectionScreen() {
     var url by rememberSaveable { mutableStateOf("") }
     var user by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    var editing by remember { mutableStateOf<ServerConfig?>(null) }
     val connecting = status is ConnectionStatus.Connecting
+
+    editing?.let { server ->
+        EditServerDialog(
+            server = server,
+            onDismiss = { editing = null },
+            onSave = { name, u, usr, pwd ->
+                MusicRepository.updateServer(server.id, name, u, usr, pwd)
+                editing = null
+            },
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -136,7 +150,9 @@ fun ServerConnectionScreen() {
             if (servers.isEmpty()) {
                 Text(str(S.AUCUN_SERVEUR), style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
             } else {
-                servers.forEachIndexed { i, server -> ServerRow(server, i, refreshingServerId) }
+                servers.forEachIndexed { i, server ->
+                    ServerRow(server, i, refreshingServerId, onEdit = { editing = server })
+                }
                 if (servers.size > 1) {
                     Text(
                         str(S.PRIORITE_HINT),
@@ -248,6 +264,55 @@ private fun CollapsibleSection(
     }
 }
 
+/** Dialogue d'édition d'un serveur existant. Mot de passe vide = inchangé (pas de re-validation). */
+@Composable
+private fun EditServerDialog(
+    server: ServerConfig,
+    onDismiss: () -> Unit,
+    onSave: (name: String, url: String, user: String, password: String) -> Unit,
+) {
+    var name by remember { mutableStateOf(server.name) }
+    var url by remember { mutableStateOf(server.baseUrl) }
+    var user by remember { mutableStateOf(server.username) }
+    var pwd by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(str(S.MODIFIER_SERVEUR), style = Sillon.type.displaySmall) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Sillon.spacing.s)) {
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it },
+                    label = { Text(str(S.NOM)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = url, onValueChange = { url = it },
+                    label = { Text(str(S.ADRESSE_SERVEUR)) }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = user, onValueChange = { user = it },
+                    label = { Text(str(S.UTILISATEUR)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = pwd, onValueChange = { pwd = it },
+                    label = { Text(str(S.MDP_GARDER)) }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name, url, user, pwd) }) { Text(str(S.ENREGISTRER)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(str(S.ANNULER)) }
+        },
+    )
+}
+
 /** Sélecteur de langue (11 langues, comme iOS) : ligne cliquable + menu déroulant. */
 @Composable
 private fun LanguagePicker() {
@@ -283,14 +348,21 @@ private fun LanguagePicker() {
 }
 
 @Composable
-private fun ServerRow(server: ServerConfig, index: Int, refreshingServerId: String?) {
+private fun ServerRow(server: ServerConfig, index: Int, refreshingServerId: String?, onEdit: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
     ) {
         ServerMark(server.type, Modifier.size(26.dp))
-        Column(Modifier.weight(1f)) {
+        // Taper le nom/adresse ouvre l'édition.
+        Column(
+            Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(Sillon.spacing.s))
+                .clickable(onClick = onEdit)
+                .padding(vertical = Sillon.spacing.xs),
+        ) {
             Text(server.name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire)
             Text(server.baseUrl, style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
         }

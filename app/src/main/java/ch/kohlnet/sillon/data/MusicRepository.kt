@@ -184,6 +184,44 @@ object MusicRepository {
         }
     }
 
+    /**
+     * Modifie un serveur EXISTANT (nom/adresse/utilisateur, et mot de passe optionnel).
+     * - mot de passe FOURNI → re-validation complète (ré-authentification) ; en cas d'échec, rien n'est modifié.
+     * - mot de passe VIDE → mise à jour des métadonnées seulement (jeton/mot de passe conservés).
+     * Conserve l'id, l'état actif et la position (priorité).
+     */
+    fun updateServer(id: String, name: String, baseUrl: String, username: String, password: String) {
+        scope.launch {
+            val existing = _servers.value.firstOrNull { it.id == id } ?: return@launch
+            val cleanUrl = baseUrl.trim().trimEnd('/')
+            val finalName = name.trim().ifBlank { existing.name }
+            if (password.isNotBlank()) {
+                _status.value = ConnectionStatus.Connecting
+                try {
+                    val authed = authenticateServer(id, existing.type, cleanUrl, username, password)
+                    applyConfig(id, authed.copy(name = finalName, active = existing.active))
+                    _status.value = ConnectionStatus.Connected(finalName)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _status.value = ConnectionStatus.Error(e.message ?: "Échec de la connexion")
+                }
+            } else {
+                applyConfig(id, existing.copy(name = finalName, baseUrl = cleanUrl, username = username))
+            }
+        }
+    }
+
+    /** Remplace la config d'un serveur (même position), recrée son provider et relit la bibliothèque. */
+    private suspend fun applyConfig(id: String, newCfg: ServerConfig) {
+        val updated = _servers.value.map { if (it.id == id) newCfg else it }
+        _servers.value = updated
+        appContext?.let { ServerStore.save(it, updated) }
+        providers.remove(id)?.close()
+        rebuildProviders()
+        loadAlbums()
+    }
+
     /** Retire un serveur. */
     fun removeServer(id: String) {
         scope.launch {
