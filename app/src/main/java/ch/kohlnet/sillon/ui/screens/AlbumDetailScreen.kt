@@ -128,15 +128,43 @@ fun AlbumDetailScreen(album: Album, onBack: () -> Unit) {
                 .lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
             verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
         ) {
-            items(tracks, key = { it.id }) { track ->
-                TrackRow(
-                    track = track,
-                    isPlaying = track.id == current?.id,
-                    onClick = { PlayerController.play(tracks, tracks.indexOf(track)) },
-                )
+            // Albums multi-disques : en-tête « Disque N » avant chaque disque. Disque unique : aucun en-tête.
+            val multiDisc = tracks.map { it.disc ?: 1 }.distinct().size > 1
+            if (multiDisc) {
+                tracks.groupBy { it.disc ?: 1 }.toSortedMap().forEach { (disc, discTracks) ->
+                    item(key = "disc-$disc") { DiscHeader(disc) }
+                    items(discTracks, key = { it.id }) { track ->
+                        TrackRow(
+                            track = track,
+                            isPlaying = track.id == current?.id,
+                            onClick = { PlayerController.play(tracks, tracks.indexOf(track)) },
+                        )
+                    }
+                }
+            } else {
+                items(tracks, key = { it.id }) { track ->
+                    TrackRow(
+                        track = track,
+                        isPlaying = track.id == current?.id,
+                        onClick = { PlayerController.play(tracks, tracks.indexOf(track)) },
+                    )
+                }
             }
         }
     }
+}
+
+/** En-tête de disque (albums multi-disques) : « Disque 1 », « Disque 2 », … */
+@Composable
+private fun DiscHeader(disc: Int) {
+    Text(
+        text = "${str(S.DISQUE)} $disc",
+        style = Sillon.type.displaySmall,
+        color = Sillon.colors.texteSourdine,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = Sillon.spacing.m, bottom = Sillon.spacing.xs),
+    )
 }
 
 @Composable

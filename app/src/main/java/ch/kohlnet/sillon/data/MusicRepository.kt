@@ -55,6 +55,7 @@ data class Track(
     val sampleRateHz: Int? = null,
     val bitDepthBits: Int? = null,
     val bitrateKbps: Int? = null,
+    val disc: Int? = null,            // n° de disque (albums multi-disques) ; null/1 = disque unique
 ) {
     /** Clé de correspondance (favoris pistes propagés entre serveurs) : titre+artiste normalisés. */
     fun matchKey(): String = (title + " " + artist).trim().lowercase().replace(Regex("\\s+"), " ")

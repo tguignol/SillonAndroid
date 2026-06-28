@@ -32,6 +32,7 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
                 title = tk.name,
                 artist = tk.artists?.joinToString(", ").orEmpty(),
                 index = tk.index,
+                disc = tk.disc,
                 durationMs = tk.runTimeTicks?.div(10_000),
                 streamUrl = client.streamUrl(tk.id, token),
                 coverUrl = client.coverUrl(tk.id, token),

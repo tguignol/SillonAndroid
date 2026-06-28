@@ -155,6 +155,7 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
                 title = s.title,
                 artist = s.artist,
                 index = s.track,
+                disc = s.discNumber,
                 durationMs = s.duration?.let { it * 1000L },
                 streamUrl = streamUrl(s.id, needsTranscode(s.suffix, s.bitDepth)),
                 coverUrl = coverUrl(s.coverArt ?: s.id),

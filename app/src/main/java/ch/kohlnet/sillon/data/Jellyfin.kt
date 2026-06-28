@@ -66,6 +66,7 @@ data class JellyfinTrack(
     @SerialName("Id") val id: String,
     @SerialName("Name") val name: String,
     @SerialName("IndexNumber") val index: Int? = null,
+    @SerialName("ParentIndexNumber") val disc: Int? = null, // n° de disque (albums multi-disques)
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("Artists") val artists: List<String>? = null,
     @SerialName("Album") val album: String? = null,

@@ -156,7 +156,9 @@ private fun SillonRail(current: SillonDestination, onSelect: (SillonDestination)
         containerColor = Sillon.colors.surfaceElevee,
         modifier = Modifier.statusBarsPadding(),
     ) {
-        Spacer(Modifier.height(Sillon.spacing.xl))
+        // Marge haute volontairement large : descend le groupe (Accueil ≈ ancienne hauteur de
+        // Bibliothèque), pour ne pas coller les icônes tout en haut.
+        Spacer(Modifier.height(96.dp))
         // Destinations principales en haut ; Réglages poussé TOUT EN BAS (les paramètres sont
         // habituellement en bas).
         SillonDestination.entries.filter { it != SillonDestination.REGLAGES }.forEach { dest ->
