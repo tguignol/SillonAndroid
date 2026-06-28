@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -60,7 +61,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
+import ch.kohlnet.sillon.data.ServerType
 import ch.kohlnet.sillon.ui.components.AzScrollIndex
+import ch.kohlnet.sillon.ui.components.ServerMark
 import ch.kohlnet.sillon.ui.components.SourceBadge
 import ch.kohlnet.sillon.ui.components.azSortKey
 import ch.kohlnet.sillon.ui.components.azTargetIndex
@@ -140,6 +143,7 @@ private enum class LibraryMode { ALBUMS, ARTISTS }
 fun BibliothequeScreen() {
     val albums by MusicRepository.albums.collectAsState()
     val loading by MusicRepository.loading.collectAsState()
+    val servers by MusicRepository.servers.collectAsState()
     var mode by rememberSaveable { mutableStateOf(LibraryMode.ALBUMS) }
     var selectedAlbum by remember { mutableStateOf<Album?>(null) }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
@@ -155,10 +159,15 @@ fun BibliothequeScreen() {
     }
 
     val sortedAlbums = remember(albums) { albums.sortedBy { azSortKey(it.title) } }
-    val artists = remember(albums) {
+    val artists = remember(albums, servers) {
         albums.filter { it.artist.isNotBlank() }
             .groupBy { it.artist.trim().lowercase() }
-            .map { (_, list) -> list.first().artist.trim() to list.size }
+            .map { (_, list) ->
+                val name = list.first().artist.trim()
+                val ids = list.flatMap { a -> a.sources.ifEmpty { listOf(a.serverId) } }.distinct()
+                val types = ids.mapNotNull { id -> servers.firstOrNull { it.id == id }?.type }.distinct()
+                name to types
+            }
             .sortedBy { azSortKey(it.first) }
     }
 
@@ -225,7 +234,7 @@ private fun IndexedAlbumGrid(
 
 @Composable
 private fun IndexedArtistList(
-    artists: List<Pair<String, Int>>,
+    artists: List<Pair<String, List<ServerType>>>,
     listState: LazyListState,
     scope: CoroutineScope,
     onClick: (String) -> Unit,
@@ -241,8 +250,8 @@ private fun IndexedArtistList(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
         ) {
-            lazyRowItems(artists, key = { it.first }) { (name, count) ->
-                ArtistRow(name, count) { onClick(name) }
+            lazyRowItems(artists, key = { it.first }) { (name, types) ->
+                ArtistRow(name, types) { onClick(name) }
             }
         }
         AzScrollIndex(present = present, current = current, onLetter = { c ->
@@ -252,16 +261,18 @@ private fun IndexedArtistList(
 }
 
 @Composable
-private fun ArtistRow(name: String, albumCount: Int, onClick: () -> Unit) {
+private fun ArtistRow(name: String, types: List<ServerType>, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = Sillon.spacing.m),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
     ) {
         Text(name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, modifier = Modifier.weight(1f))
-        Text("$albumCount", style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
+        // Icône(s) du/des serveur(s) d'origine, à la place du nombre.
+        types.forEach { t -> ServerMark(t, Modifier.size(18.dp)) }
     }
 }
 
