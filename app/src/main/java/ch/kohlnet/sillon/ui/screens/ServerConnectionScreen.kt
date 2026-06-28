@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -117,6 +118,10 @@ fun ServerConnectionScreen() {
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
+            // Réduit la zone visible de la hauteur du clavier (edge-to-edge : la fenêtre ne se
+            // redimensionne pas seule) → Compose remonte le champ actif AU-DESSUS du clavier au lieu
+            // de le laisser caché dessous. À placer AVANT verticalScroll pour rétrécir le viewport.
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = Sillon.spacing.xl)
             .padding(top = Sillon.spacing.l, bottom = Sillon.spacing.xxl),
