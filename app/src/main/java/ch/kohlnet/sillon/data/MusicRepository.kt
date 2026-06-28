@@ -336,6 +336,15 @@ object MusicRepository {
     suspend fun tracks(album: Album): List<Track> =
         providers[album.serverId]?.let { runCatching { it.tracks(album.id) }.getOrDefault(emptyList()) } ?: emptyList()
 
+    /** Format audio représentatif d'un album (1re piste), récupéré à la volée et MIS EN CACHE. */
+    private val formatCache = mutableMapOf<String, String?>()
+    suspend fun albumFormat(album: Album): String? {
+        if (formatCache.containsKey(album.id)) return formatCache[album.id]
+        val fmt = runCatching { tracks(album).firstOrNull()?.format }.getOrNull()
+        formatCache[album.id] = fmt
+        return fmt
+    }
+
     /** Paroles d'un morceau — routées vers le provider du serveur d'origine. */
     suspend fun lyrics(track: Track): TrackLyrics? =
         providers[track.serverId]?.let { runCatching { it.lyrics(track.id) }.getOrNull() }

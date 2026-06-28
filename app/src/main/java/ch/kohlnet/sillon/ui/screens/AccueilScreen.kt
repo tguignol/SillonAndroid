@@ -35,6 +35,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -138,6 +139,9 @@ fun AccueilScreen() {
 
 private enum class LibraryMode { ALBUMS, ARTISTS }
 
+/** Entrée artiste : nom, serveurs d'origine, et un album représentatif (pour déduire le format). */
+private data class ArtistEntry(val name: String, val types: List<ServerType>, val sample: Album)
+
 /** Bibliothèque : bascule Albums / Artistes, tri alphabétique, index A-Z à droite (presse M → albums en M). */
 @Composable
 fun BibliothequeScreen() {
@@ -166,9 +170,9 @@ fun BibliothequeScreen() {
                 val name = list.first().artist.trim()
                 val ids = list.flatMap { a -> a.sources.ifEmpty { listOf(a.serverId) } }.distinct()
                 val types = ids.mapNotNull { id -> servers.firstOrNull { it.id == id }?.type }.distinct()
-                name to types
+                ArtistEntry(name, types, list.first())
             }
-            .sortedBy { azSortKey(it.first) }
+            .sortedBy { azSortKey(it.name) }
     }
 
     Column(
@@ -234,12 +238,12 @@ private fun IndexedAlbumGrid(
 
 @Composable
 private fun IndexedArtistList(
-    artists: List<Pair<String, List<ServerType>>>,
+    artists: List<ArtistEntry>,
     listState: LazyListState,
     scope: CoroutineScope,
     onClick: (String) -> Unit,
 ) {
-    val letters = remember(artists) { artists.map { indexLetter(it.first) } }
+    val letters = remember(artists) { artists.map { indexLetter(it.name) } }
     val present = remember(letters) { letters.toSet() }
     val current by remember(letters) {
         derivedStateOf { letters.getOrNull(listState.firstVisibleItemIndex) ?: 'A' }
@@ -250,8 +254,8 @@ private fun IndexedArtistList(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
         ) {
-            lazyRowItems(artists, key = { it.first }) { (name, types) ->
-                ArtistRow(name, types) { onClick(name) }
+            lazyRowItems(artists, key = { it.name }) { entry ->
+                ArtistRow(entry) { onClick(entry.name) }
             }
         }
         AzScrollIndex(present = present, current = current, onLetter = { c ->
@@ -261,7 +265,11 @@ private fun IndexedArtistList(
 }
 
 @Composable
-private fun ArtistRow(name: String, types: List<ServerType>, onClick: () -> Unit) {
+private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
+    // Format audio (FLAC/ALAC/WAV…) récupéré à la volée pour l'album représentatif (caché côté repo).
+    var format by remember(entry.sample.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(entry.sample.id) { format = MusicRepository.albumFormat(entry.sample) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -270,9 +278,23 @@ private fun ArtistRow(name: String, types: List<ServerType>, onClick: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
     ) {
-        Text(name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, modifier = Modifier.weight(1f))
-        // Icône(s) du/des serveur(s) d'origine, à la place du nombre.
-        types.forEach { t -> ServerMark(t, Modifier.size(18.dp)) }
+        Text(
+            text = entry.name,
+            style = Sillon.type.corps,
+            color = Sillon.colors.texteIvoire,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        format?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                text = it.uppercase(),
+                style = Sillon.type.technique.copy(fontSize = 10.sp),
+                color = Sillon.colors.signalTeal,
+            )
+        }
+        // Icône(s) du/des serveur(s) d'origine.
+        entry.types.forEach { t -> ServerMark(t, Modifier.size(18.dp)) }
     }
 }
 
