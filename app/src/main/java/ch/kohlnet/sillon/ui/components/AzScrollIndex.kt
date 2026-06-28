@@ -1,11 +1,15 @@
 package ch.kohlnet.sillon.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,10 +53,11 @@ fun azTargetIndex(letters: List<Char>, c: Char): Int {
 /**
  * Index alphabétique vertical (façon iOS) sur une bordure, HORS des vignettes. Presser ou glisser
  * le doigt sur une lettre appelle [onLetter] (ex. « M » → sauter aux M). Les lettres présentes dans
- * la liste sont en cuivre/gras, les absentes estompées.
+ * la liste sont en cuivre/gras, les absentes estompées. Un CURSEUR (pastille cuivre) marque la lettre
+ * [current] (position de défilement actuelle) et se déplace quand on scrolle.
  */
 @Composable
-fun AzScrollIndex(present: Set<Char>, onLetter: (Char) -> Unit, modifier: Modifier = Modifier) {
+fun AzScrollIndex(present: Set<Char>, current: Char, onLetter: (Char) -> Unit, modifier: Modifier = Modifier) {
     var lastIdx by remember { mutableIntStateOf(-1) }
 
     Column(
@@ -83,12 +90,22 @@ fun AzScrollIndex(present: Set<Char>, onLetter: (Char) -> Unit, modifier: Modifi
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AZ_LETTERS.forEach { c ->
-            Text(
-                text = c.toString(),
-                fontSize = 9.sp,
-                fontWeight = if (c in present) FontWeight.Bold else FontWeight.Normal,
-                color = if (c in present) Sillon.colors.accentCuivre else Sillon.colors.texteSourdine.copy(alpha = 0.45f),
-            )
+            val isCurrent = c == current
+            Box(
+                modifier = if (isCurrent) Modifier.size(16.dp).clip(CircleShape).background(Sillon.colors.accentCuivre) else Modifier,
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = c.toString(),
+                    fontSize = 9.sp,
+                    fontWeight = if (isCurrent || c in present) FontWeight.Bold else FontWeight.Normal,
+                    color = when {
+                        isCurrent -> Color.White
+                        c in present -> Sillon.colors.accentCuivre
+                        else -> Sillon.colors.texteSourdine.copy(alpha = 0.45f)
+                    },
+                )
+            }
         }
     }
 }

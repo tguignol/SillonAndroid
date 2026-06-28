@@ -35,6 +35,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -202,6 +203,9 @@ private fun IndexedAlbumGrid(
 ) {
     val letters = remember(albums) { albums.map { indexLetter(it.title) } }
     val present = remember(letters) { letters.toSet() }
+    val current by remember(letters) {
+        derivedStateOf { letters.getOrNull(gridState.firstVisibleItemIndex) ?: 'A' }
+    }
     Row(Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(CARD),
@@ -213,7 +217,7 @@ private fun IndexedAlbumGrid(
         ) {
             items(albums, key = { it.id }) { album -> AlbumCard(album) { onClick(album) } }
         }
-        AzScrollIndex(present = present, onLetter = { c ->
+        AzScrollIndex(present = present, current = current, onLetter = { c ->
             scope.launch { gridState.scrollToItem(azTargetIndex(letters, c)) }
         })
     }
@@ -228,6 +232,9 @@ private fun IndexedArtistList(
 ) {
     val letters = remember(artists) { artists.map { indexLetter(it.first) } }
     val present = remember(letters) { letters.toSet() }
+    val current by remember(letters) {
+        derivedStateOf { letters.getOrNull(listState.firstVisibleItemIndex) ?: 'A' }
+    }
     Row(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
@@ -238,7 +245,7 @@ private fun IndexedArtistList(
                 ArtistRow(name, count) { onClick(name) }
             }
         }
-        AzScrollIndex(present = present, onLetter = { c ->
+        AzScrollIndex(present = present, current = current, onLetter = { c ->
             scope.launch { listState.scrollToItem(azTargetIndex(letters, c)) }
         })
     }
