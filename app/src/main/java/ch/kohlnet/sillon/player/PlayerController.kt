@@ -5,7 +5,7 @@ import android.content.Context
 import android.media.AudioManager
 import android.net.Uri
 import androidx.core.content.ContextCompat
-import kotlin.math.roundToInt
+import kotlin.math.ceil
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -175,23 +175,51 @@ object PlayerController {
         controller?.let { it.seekTo((it.currentPosition - ms).coerceAtLeast(0)) }
     }
 
-    /** Règle le volume MÉDIA système à une fraction 0..1. */
+    /** Dernier pas système réglé PAR NOUS (pour repérer un changement EXTERNE = touches physiques). */
+    private var lastSystemStep = -1
+
+    /**
+     * Règle le volume « perçu » 0..1. Le volume média système n'a que des pas ENTIERS ; pour offrir
+     * des DEMI-PAS (plus fin que les touches physiques), on combine le pas système (grossier) avec le
+     * volume du lecteur (fin, continu) : perçu ≈ (pas/max) × volumeLecteur.
+     */
     fun setVolume(fraction: Float) {
         val am = audioManager ?: return
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val target = (fraction.coerceIn(0f, 1f) * max).roundToInt().coerceIn(0, max)
-        runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
-        _volume.value = if (max > 0) target / max.toFloat() else 0f
+        val f = fraction.coerceIn(0f, 1f)
+        _volume.value = f
+        if (max <= 0) return
+        val target = f * max
+        val step = ceil(target).toInt().coerceIn(0, max)
+        runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, step, 0) }
+        lastSystemStep = step
+        controller?.volume = if (step > 0) (target / step).coerceIn(0f, 1f) else 1f
     }
 
-    /** Ajuste le volume média par palier (ex. icônes ± du lecteur : ±0.05 = 5 %). */
+    /** Ajuste le volume perçu d'un delta (fraction 0..1). */
     fun adjustVolume(delta: Float) = setVolume(_volume.value + delta)
 
-    /** Relit le volume média courant du système (les touches matérielles peuvent l'avoir changé). */
+    /** Icônes ± du lecteur : un DEMI-PAS système (= moitié de l'incrément des touches physiques). */
+    fun nudgeVolume(up: Boolean) {
+        val max = (audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0).coerceAtLeast(1)
+        val half = 0.5f / max
+        adjustVolume(if (up) half else -half)
+    }
+
+    /**
+     * Relit le volume média système. Si le pas a changé EN DEHORS de l'app (touches physiques), on
+     * réinitialise le réglage fin du lecteur et on resynchronise la barre sur ce pas plein.
+     */
     fun refreshVolume() {
         val am = audioManager ?: return
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        if (max > 0) _volume.value = am.getStreamVolume(AudioManager.STREAM_MUSIC) / max.toFloat()
+        if (max <= 0) { _volume.value = 0f; return }
+        val s = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        if (s != lastSystemStep) {
+            controller?.volume = 1f
+            lastSystemStep = s
+            _volume.value = s / max.toFloat()
+        }
     }
 
     /** Saute au morceau d'index `index` dans la file. */

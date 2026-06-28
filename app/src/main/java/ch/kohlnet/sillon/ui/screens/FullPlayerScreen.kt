@@ -330,7 +330,7 @@ private fun ColumnScope.Controls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
     ) {
-        IconButton(onClick = { PlayerController.adjustVolume(-0.05f) }, modifier = Modifier.size(28.dp)) {
+        IconButton(onClick = { PlayerController.nudgeVolume(up = false) }, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Filled.VolumeDown, "Moins fort", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
         }
         ThinSlider(
@@ -342,7 +342,7 @@ private fun ColumnScope.Controls(
             thumbColor = Sillon.colors.accentCuivre,
             modifier = Modifier.weight(1f).padding(horizontal = Sillon.spacing.s),
         )
-        IconButton(onClick = { PlayerController.adjustVolume(0.05f) }, modifier = Modifier.size(28.dp)) {
+        IconButton(onClick = { PlayerController.nudgeVolume(up = true) }, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Filled.VolumeUp, "Plus fort", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
         }
     }

@@ -256,7 +256,14 @@ private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
         modifier = Modifier
             .fillMaxWidth()
             .then(if (bottomInset) Modifier.navigationBarsPadding() else Modifier)
-            .padding(horizontal = Sillon.spacing.m, vertical = Sillon.spacing.xs),
+            .padding(
+                start = Sillon.spacing.m,
+                end = Sillon.spacing.m,
+                top = Sillon.spacing.xs,
+                // Écran INTERNE (large) : plus d'air sous le mini-player → la barre de progression
+                // n'est plus collée à la ligne de gestes du bas. Écran externe (étroit) : inchangé.
+                bottom = if (bottomInset) Sillon.spacing.l else Sillon.spacing.xs,
+            ),
     ) {
         // Écran étroit (Fold replié / téléphone) → version COMPACTE : pochette + titre/artiste +
         // lecture/suivant, fine ligne de progression en bas. Écran large → version riche.
