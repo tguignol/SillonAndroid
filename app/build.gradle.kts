@@ -75,6 +75,8 @@ dependencies {
     implementation(libs.mlkit.translate)
     implementation(libs.mlkit.language.id)
     implementation(libs.kotlinx.coroutines.play.services)
+    // Fichiers locaux : accès au dossier choisi (Storage Access Framework)
+    implementation("androidx.documentfile:documentfile:1.0.1")
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

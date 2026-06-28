@@ -156,12 +156,35 @@ object MusicRepository {
 
     /** (Re)construit la map des providers à partir des serveurs actifs. */
     private fun rebuildProviders() {
+        val ctx = appContext ?: return
         val active = _servers.value.filter { it.active }
         // ferme ceux qui ne sont plus actifs
         providers.keys.toList().filter { id -> active.none { it.id == id } }
             .forEach { providers.remove(it)?.close() }
         // crée les nouveaux
-        active.forEach { cfg -> if (!providers.containsKey(cfg.id)) providers[cfg.id] = providerFor(cfg) }
+        active.forEach { cfg -> if (!providers.containsKey(cfg.id)) providers[cfg.id] = providerFor(cfg, ctx) }
+    }
+
+    /** Ajoute une source de FICHIERS LOCAUX (dossier choisi via SAF). `treeUri` = URI d'arbre persistée. */
+    fun addLocalServer(treeUri: String) {
+        scope.launch {
+            val ctx = appContext ?: return@launch
+            _status.value = ConnectionStatus.Connecting
+            val name = LocalProvider.folderName(ctx, treeUri) ?: "Dossier"
+            val config = ServerConfig(
+                id = UUID.randomUUID().toString(),
+                type = ServerType.LOCAL,
+                name = "$name · Local",
+                baseUrl = treeUri,
+                username = "",
+            )
+            val updated = _servers.value + config
+            _servers.value = updated
+            ServerStore.save(ctx, updated)
+            rebuildProviders()
+            _status.value = ConnectionStatus.Connected(config.name)
+            loadAlbums()
+        }
     }
 
     /** Ajoute un serveur (authentifie, persiste, recharge). */
@@ -316,8 +339,10 @@ object MusicRepository {
             _refreshingServerId.value = id
             try {
                 _servers.value.firstOrNull { it.id == id && it.active }?.let { cfg ->
-                    providers.remove(id)?.close()
-                    providers[id] = providerFor(cfg)
+                    appContext?.let { ctx ->
+                        providers.remove(id)?.close()
+                        providers[id] = providerFor(cfg, ctx)
+                    }
                 }
                 loadAlbums()
             } finally {

@@ -1,11 +1,13 @@
 package ch.kohlnet.sillon.data
 
+import android.content.Context
 import kotlinx.serialization.Serializable
 
-/** Types de serveurs musicaux pris en charge (comme l'iOS). `badge` = libellé court (badge source). */
+/** Types de sources musicales prises en charge (comme l'iOS). `badge` = libellé court (badge source). */
 enum class ServerType(val label: String, val badge: String) {
     JELLYFIN("Jellyfin", "Jellyfin"),
     SUBSONIC("Subsonic / Navidrome", "Navidrome"),
+    LOCAL("Fichiers locaux", "Local"),
 }
 
 /**
@@ -43,10 +45,11 @@ interface ServerProvider {
     fun close()
 }
 
-/** Crée le provider correspondant à une config. */
-fun providerFor(config: ServerConfig): ServerProvider = when (config.type) {
+/** Crée le provider correspondant à une config (le contexte ne sert qu'aux fichiers locaux). */
+fun providerFor(config: ServerConfig, context: Context): ServerProvider = when (config.type) {
     ServerType.JELLYFIN -> JellyfinProvider(config)
     ServerType.SUBSONIC -> SubsonicProvider(config)
+    ServerType.LOCAL -> LocalProvider(config, context.applicationContext)
 }
 
 /**
@@ -62,4 +65,5 @@ suspend fun authenticateServer(
 ): ServerConfig = when (type) {
     ServerType.JELLYFIN -> JellyfinProvider.authenticate(id, url, username, password)
     ServerType.SUBSONIC -> SubsonicProvider.authenticate(id, url, username, password)
+    ServerType.LOCAL -> error("Les fichiers locaux s'ajoutent via MusicRepository.addLocalServer")
 }

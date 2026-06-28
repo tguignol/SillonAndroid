@@ -1,5 +1,8 @@
 package ch.kohlnet.sillon.ui.screens
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
@@ -54,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -86,6 +90,17 @@ fun ServerConnectionScreen() {
     var password by rememberSaveable { mutableStateOf("") }
     var editing by remember { mutableStateOf<ServerConfig?>(null) }
     val connecting = status is ConnectionStatus.Connecting
+
+    // Sélecteur de DOSSIER (SAF) pour la source « Fichiers locaux ». Lecture seule.
+    val context = LocalContext.current
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            MusicRepository.addLocalServer(it.toString())
+        }
+    }
 
     editing?.let { server ->
         EditServerDialog(
@@ -176,33 +191,40 @@ fun ServerConnectionScreen() {
                     ) { Text(t.label, style = Sillon.type.corps) }
                 }
             }
-            OutlinedTextField(
-                value = url, onValueChange = { url = it },
-                label = { Text(str(S.ADRESSE_SERVEUR)) },
-                placeholder = { Text("https://exemple:8096") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = user, onValueChange = { user = it },
-                label = { Text(str(S.UTILISATEUR)) }, singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = password, onValueChange = { password = it },
-                label = { Text(str(S.MOT_DE_PASSE)) }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(
-                onClick = {
-                    MusicRepository.addServer(type, url, user, password)
-                    url = ""; user = ""; password = ""
-                },
-                enabled = !connecting && url.isNotBlank() && user.isNotBlank(),
-            ) { Text(str(S.AJOUTER), style = Sillon.type.corps) }
+            if (type == ServerType.LOCAL) {
+                // Fichiers locaux : on choisit un DOSSIER (pas d'URL/identifiants).
+                Button(onClick = { folderPicker.launch(null) }, enabled = !connecting) {
+                    Text(str(S.CHOISIR_DOSSIER), style = Sillon.type.corps)
+                }
+            } else {
+                OutlinedTextField(
+                    value = url, onValueChange = { url = it },
+                    label = { Text(str(S.ADRESSE_SERVEUR)) },
+                    placeholder = { Text("https://exemple:8096") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = user, onValueChange = { user = it },
+                    label = { Text(str(S.UTILISATEUR)) }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = password, onValueChange = { password = it },
+                    label = { Text(str(S.MOT_DE_PASSE)) }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = {
+                        MusicRepository.addServer(type, url, user, password)
+                        url = ""; user = ""; password = ""
+                    },
+                    enabled = !connecting && url.isNotBlank() && user.isNotBlank(),
+                ) { Text(str(S.AJOUTER), style = Sillon.type.corps) }
+            }
 
             when (val s = status) {
                 is ConnectionStatus.Connecting -> Row(

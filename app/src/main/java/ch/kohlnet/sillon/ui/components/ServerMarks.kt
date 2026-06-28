@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -89,6 +90,12 @@ fun ServerMark(type: ServerType, modifier: Modifier = Modifier) {
     when (type) {
         ServerType.JELLYFIN -> JellyfinMark(modifier)
         ServerType.SUBSONIC -> NavidromeMark(modifier)
+        ServerType.LOCAL -> Icon(
+            Icons.Filled.Folder,
+            contentDescription = null,
+            tint = Color(0xFFB0853F),
+            modifier = modifier,
+        )
     }
 }
 
