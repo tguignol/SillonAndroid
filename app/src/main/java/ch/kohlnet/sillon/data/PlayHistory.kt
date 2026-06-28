@@ -30,6 +30,13 @@ data class PlayStat(
     val streamUrl: String,
     val durationMs: Long? = null,
     val index: Int? = null,
+    // Qualité audio persistée → la ligne verte « FLAC · 44,1 kHz » reste affichée même quand on lit
+    // depuis un carrousel (favoris / plus écoutés) reconstruit à partir des stats. Optionnels (défaut
+    // null) → rétrocompatibles avec l'historique déjà enregistré.
+    val format: String? = null,
+    val sampleRateHz: Int? = null,
+    val bitDepthBits: Int? = null,
+    val bitrateKbps: Int? = null,
     val count: Int = 0,
     val lastPlayedAt: Long = 0L,
 ) {
@@ -42,6 +49,7 @@ data class PlayStat(
     fun toTrack(): Track = Track(
         id = trackId, title = title, artist = artist, index = index, durationMs = durationMs,
         streamUrl = streamUrl, coverUrl = coverUrl, serverId = serverId, album = album.ifBlank { null },
+        format = format, sampleRateHz = sampleRateHz, bitDepthBits = bitDepthBits, bitrateKbps = bitrateKbps,
     )
 }
 
@@ -84,6 +92,11 @@ object PlayHistory {
                 streamUrl = track.streamUrl,
                 durationMs = track.durationMs ?: s.durationMs,
                 index = track.index ?: s.index,
+                // On enrichit la qualité si la piste en cours la porte (album), sinon on garde l'existante.
+                format = track.format ?: s.format,
+                sampleRateHz = track.sampleRateHz ?: s.sampleRateHz,
+                bitDepthBits = track.bitDepthBits ?: s.bitDepthBits,
+                bitrateKbps = track.bitrateKbps ?: s.bitrateKbps,
                 count = s.count + 1,
                 lastPlayedAt = now,
             )
@@ -92,7 +105,10 @@ object PlayHistory {
                 PlayStat(
                     trackId = track.id, serverId = track.serverId, title = track.title, artist = track.artist,
                     album = track.album ?: "", coverUrl = track.coverUrl, streamUrl = track.streamUrl,
-                    durationMs = track.durationMs, index = track.index, count = 1, lastPlayedAt = now,
+                    durationMs = track.durationMs, index = track.index,
+                    format = track.format, sampleRateHz = track.sampleRateHz,
+                    bitDepthBits = track.bitDepthBits, bitrateKbps = track.bitrateKbps,
+                    count = 1, lastPlayedAt = now,
                 )
             )
         }
