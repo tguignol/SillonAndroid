@@ -6,8 +6,8 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
     private val token: String get() = config.token.orEmpty()
     private val userId: String get() = config.userId.orEmpty()
 
-    override suspend fun recentAlbums(limit: Int): List<Album> =
-        client.albums(token, userId, limit).map(::toAlbum)
+    override suspend fun allAlbums(): List<Album> =
+        client.allAlbums(token, userId).map(::toAlbum)
 
     override suspend fun searchAlbums(query: String): List<Album> {
         val byName = client.searchAlbums(token, userId, query)
@@ -26,6 +26,7 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
 
     override suspend fun tracks(albumId: String): List<Track> =
         client.albumTracks(token, userId, albumId).map { tk ->
+            val audio = tk.mediaStreams?.firstOrNull { it.type.equals("Audio", ignoreCase = true) }
             Track(
                 id = tk.id,
                 title = tk.name,
@@ -35,8 +36,24 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
                 streamUrl = client.streamUrl(tk.id, token),
                 coverUrl = client.coverUrl(tk.id, token),
                 serverId = config.id,
+                format = fileFormat(tk.container, tk.path, audio?.codec),
+                sampleRateHz = audio?.sampleRate,
+                bitDepthBits = audio?.bitDepth,
+                bitrateKbps = audio?.bitRate?.let { it / 1000 },
             )
         }
+
+    /** Format affiché : conteneur prioritaire, repli sur l'extension du chemin, puis le codec.
+     *  Pour les conteneurs MP4 (m4a…), on désambigüe ALAC vs AAC via le codec (comme l'iOS). */
+    private fun fileFormat(container: String?, path: String?, codec: String?): String? {
+        val cont = container?.split(",")?.firstOrNull()?.trim()?.lowercase()
+        val ext = path?.substringAfterLast('.', "")?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        val base = cont?.takeIf { it.isNotEmpty() } ?: ext
+        val c = codec?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        if (base.isNullOrEmpty()) return c
+        if (base in setOf("m4a", "m4b", "mp4", "mp4a", "mka", "mov") && c != null) return c
+        return base
+    }
 
     override suspend fun lyrics(trackId: String): TrackLyrics? {
         val dto = client.lyrics(token, trackId) ?: return null

@@ -34,7 +34,8 @@ data class ServerConfig(
  */
 interface ServerProvider {
     val config: ServerConfig
-    suspend fun recentAlbums(limit: Int = 60): List<Album>
+    /** TOUTE la bibliothèque (paginée jusqu'au bout), récents d'abord. */
+    suspend fun allAlbums(): List<Album>
     suspend fun searchAlbums(query: String): List<Album>
     suspend fun albumsByArtistName(name: String): List<Album>
     suspend fun tracks(albumId: String): List<Track>

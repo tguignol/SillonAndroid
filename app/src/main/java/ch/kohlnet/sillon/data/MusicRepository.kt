@@ -29,7 +29,7 @@ data class Album(
     fun matchKey(): String = (title + " " + artist).trim().lowercase().replace(Regex("\\s+"), " ")
 }
 
-/** Morceau côté UI. `serverId` = serveur d'origine. */
+/** Morceau côté UI. `serverId` = serveur d'origine. Champs qualité audio (codec/fréquence/profondeur/débit). */
 data class Track(
     val id: String,
     val title: String,
@@ -39,7 +39,27 @@ data class Track(
     val streamUrl: String,
     val coverUrl: String?,
     val serverId: String = "",
-)
+    val format: String? = null,       // ex "flac", "alac", "wav"
+    val sampleRateHz: Int? = null,
+    val bitDepthBits: Int? = null,
+    val bitrateKbps: Int? = null,
+) {
+    /** Libellé qualité condensé façon iOS : « FLAC · 44,1 kHz » (codec en majuscule + fréquence). */
+    fun qualityLabel(): String? {
+        val codec = format?.takeIf { it.isNotBlank() }?.uppercase()
+        val khz = sampleRateHz?.takeIf { it > 0 }?.let { hz ->
+            val k = hz / 1000.0
+            if (k == k.toLong().toDouble()) k.toLong().toString()
+            else String.format("%.1f", k).replace(".", ",")
+        }
+        return when {
+            codec != null && khz != null -> "$codec · $khz kHz"
+            codec != null -> codec
+            khz != null -> "$khz kHz"
+            else -> null
+        }
+    }
+}
 
 /** Une ligne de paroles. `timeSeconds` non-nil = paroles synchronisées. */
 data class LyricLine(val text: String, val timeSeconds: Double?)
@@ -177,9 +197,9 @@ object MusicRepository {
     fun isFavorite(album: Album): Boolean =
         _favorites.value.any { it.matchKey() == album.matchKey() }
 
-    /** Recharge les albums récents agrégés de tous les serveurs actifs. */
+    /** Recharge TOUTE la bibliothèque agrégée de tous les serveurs actifs (paginée). */
     suspend fun loadAlbums() {
-        _albums.value = aggregate { it.recentAlbums() }
+        _albums.value = aggregate { it.allAlbums() }
     }
 
     /** Rechargement MANUEL (bouton « Rafraîchir ») : recrée les providers actifs et relit la bibliothèque. */

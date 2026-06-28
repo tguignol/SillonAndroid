@@ -40,6 +40,7 @@ data class JellyfinUser(
 @Serializable
 data class ItemsResponse(
     @SerialName("Items") val items: List<JellyfinItem> = emptyList(),
+    @SerialName("TotalRecordCount") val totalRecordCount: Int? = null,
 )
 
 @Serializable
@@ -50,12 +51,24 @@ data class JellyfinItem(
 )
 
 @Serializable
+data class JellyfinMediaStream(
+    @SerialName("Type") val type: String? = null,
+    @SerialName("Codec") val codec: String? = null,
+    @SerialName("BitRate") val bitRate: Int? = null,      // bits/s
+    @SerialName("SampleRate") val sampleRate: Int? = null,
+    @SerialName("BitDepth") val bitDepth: Int? = null,
+)
+
+@Serializable
 data class JellyfinTrack(
     @SerialName("Id") val id: String,
     @SerialName("Name") val name: String,
     @SerialName("IndexNumber") val index: Int? = null,
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("Artists") val artists: List<String>? = null,
+    @SerialName("Container") val container: String? = null,
+    @SerialName("Path") val path: String? = null,
+    @SerialName("MediaStreams") val mediaStreams: List<JellyfinMediaStream>? = null,
 )
 
 @Serializable
@@ -101,18 +114,32 @@ class JellyfinClient(baseUrl: String) {
             setBody(AuthRequest(username, password))
         }.body()
 
-    /** Albums de la bibliothèque (les plus récents d'abord). */
-    suspend fun albums(token: String, userId: String, limit: Int = 60): List<JellyfinItem> =
-        http.get("$base/Items") {
-            header("X-Emby-Authorization", authHeader(token))
-            parameter("userId", userId)
-            parameter("IncludeItemTypes", "MusicAlbum")
-            parameter("Recursive", "true")
-            parameter("SortBy", "DateCreated,SortName")
-            parameter("SortOrder", "Descending")
-            parameter("Limit", limit.toString())
-            parameter("Fields", "AlbumArtist")
-        }.body<ItemsResponse>().items
+    /** TOUS les albums de la bibliothèque (paginés jusqu'au bout), récents d'abord. */
+    suspend fun allAlbums(token: String, userId: String): List<JellyfinItem> {
+        val pageSize = 500
+        var start = 0
+        val out = mutableListOf<JellyfinItem>()
+        while (true) {
+            val resp = http.get("$base/Items") {
+                header("X-Emby-Authorization", authHeader(token))
+                parameter("userId", userId)
+                parameter("IncludeItemTypes", "MusicAlbum")
+                parameter("Recursive", "true")
+                parameter("SortBy", "DateCreated,SortName")
+                parameter("SortOrder", "Descending")
+                parameter("StartIndex", start.toString())
+                parameter("Limit", pageSize.toString())
+                parameter("Fields", "AlbumArtist")
+            }.body<ItemsResponse>()
+            out += resp.items
+            val total = resp.totalRecordCount
+            if (resp.items.size < pageSize) break
+            if (total != null && out.size >= total) break
+            start += pageSize
+            if (start > 1_000_000) break // garde-fou
+        }
+        return out
+    }
 
     /** Recherche d'albums par terme. */
     suspend fun searchAlbums(token: String, userId: String, query: String, limit: Int = 50): List<JellyfinItem> =
@@ -156,7 +183,7 @@ class JellyfinClient(baseUrl: String) {
             parameter("parentId", albumId)
             parameter("IncludeItemTypes", "Audio")
             parameter("SortBy", "ParentIndexNumber,IndexNumber,SortName")
-            parameter("Fields", "Artists")
+            parameter("Fields", "Artists,MediaStreams,Path,Container")
         }.body<TracksResponse>().items
 
     /** URL chargeable de la pochette (le jeton sert d'`api_key`). */

@@ -42,6 +42,10 @@ data class SubResponse(
     val track: Int? = null,
     val duration: Int? = null, // secondes
     val coverArt: String? = null,
+    val suffix: String? = null,        // codec/extension (flac, mp3…)
+    val bitRate: Int? = null,          // kbps
+    val samplingRate: Int? = null,     // Hz (OpenSubsonic)
+    val bitDepth: Int? = null,         // bits (OpenSubsonic)
 )
 @Serializable data class SubLyricsList(val structuredLyrics: List<SubStructuredLyrics> = emptyList())
 @Serializable data class SubStructuredLyrics(val synced: Boolean = false, val line: List<SubLyricLine> = emptyList())
@@ -83,9 +87,22 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
     private fun streamUrl(songId: String): String =
         "$base/rest/stream?id=${URLEncoder.encode(songId, "UTF-8")}&${authQuery()}"
 
-    override suspend fun recentAlbums(limit: Int): List<Album> =
-        api("getAlbumList2", mapOf("type" to "newest", "size" to limit.toString()))
-            .albumList2?.album.orEmpty().map(::toAlbum)
+    override suspend fun allAlbums(): List<Album> {
+        val pageSize = 500
+        var offset = 0
+        val out = mutableListOf<Album>()
+        while (true) {
+            val page = api(
+                "getAlbumList2",
+                mapOf("type" to "newest", "size" to pageSize.toString(), "offset" to offset.toString()),
+            ).albumList2?.album.orEmpty()
+            out += page.map(::toAlbum)
+            if (page.size < pageSize) break
+            offset += pageSize
+            if (offset > 1_000_000) break // garde-fou
+        }
+        return out
+    }
 
     override suspend fun searchAlbums(query: String): List<Album> =
         api("search3", mapOf("query" to query, "albumCount" to "50", "songCount" to "0", "artistCount" to "0"))
@@ -109,6 +126,10 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
                 streamUrl = streamUrl(s.id),
                 coverUrl = coverUrl(s.coverArt ?: s.id),
                 serverId = config.id,
+                format = s.suffix,
+                sampleRateHz = s.samplingRate,
+                bitDepthBits = s.bitDepth,
+                bitrateKbps = s.bitRate,
             )
         }
 
