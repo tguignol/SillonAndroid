@@ -47,6 +47,10 @@ object PlayerController {
     private val _shuffle = MutableStateFlow(false)
     val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
 
+    /** Volume applicatif du lecteur (0..1), façon iOS (n'agit pas sur le volume système). */
+    private val _volume = MutableStateFlow(1f)
+    val volume: StateFlow<Float> = _volume.asStateFlow()
+
     /** `Player.REPEAT_MODE_OFF` / `_ALL` / `_ONE`. */
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
@@ -67,6 +71,10 @@ object PlayerController {
         override fun onRepeatModeChanged(repeatMode: Int) {
             _repeatMode.value = repeatMode
         }
+
+        override fun onVolumeChanged(volume: Float) {
+            _volume.value = volume
+        }
     }
 
     /** À appeler une fois au lancement (MainActivity) : connecte le MediaController au service. */
@@ -80,6 +88,7 @@ object PlayerController {
             controller = c
             c.addListener(listener)
             _isPlaying.value = c.isPlaying
+            _volume.value = c.volume
             _current.value = _queue.value.getOrNull(c.currentMediaItemIndex)
         }, ContextCompat.getMainExecutor(ctx))
 
@@ -132,6 +141,23 @@ object PlayerController {
 
     fun seekTo(ms: Long) {
         controller?.seekTo(ms)
+    }
+
+    /** Avance de 10 s (façon iOS), borné à la durée. */
+    fun skipForward(ms: Long = 10_000) {
+        controller?.let { it.seekTo((it.currentPosition + ms).coerceAtMost(it.duration.coerceAtLeast(0))) }
+    }
+
+    /** Recule de 10 s (façon iOS), borné à 0. */
+    fun skipBackward(ms: Long = 10_000) {
+        controller?.let { it.seekTo((it.currentPosition - ms).coerceAtLeast(0)) }
+    }
+
+    /** Règle le volume applicatif (0..1). */
+    fun setVolume(v: Float) {
+        val vol = v.coerceIn(0f, 1f)
+        controller?.volume = vol
+        _volume.value = vol
     }
 
     /** Saute au morceau d'index `index` dans la file. */

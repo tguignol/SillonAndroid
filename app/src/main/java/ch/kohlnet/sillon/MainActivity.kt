@@ -16,6 +16,7 @@ import ch.kohlnet.sillon.data.AppSettings
 import ch.kohlnet.sillon.data.AppearanceMode
 import ch.kohlnet.sillon.data.LanguageManager
 import ch.kohlnet.sillon.data.MusicRepository
+import ch.kohlnet.sillon.player.AudioOutputMonitor
 import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.theme.SillonTheme
 
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
         PlayerController.init(applicationContext)
         AppSettings.init(applicationContext)
         LanguageManager.init(applicationContext)
+        AudioOutputMonitor.init(applicationContext)
         requestNotificationPermission()
         enableEdgeToEdge()
         setContent {

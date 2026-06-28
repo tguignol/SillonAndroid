@@ -16,18 +16,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material.icons.filled.VolumeDown
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -42,13 +50,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.data.Track
+import ch.kohlnet.sillon.player.AudioOutputMonitor
 import ch.kohlnet.sillon.player.PlayerController
+import ch.kohlnet.sillon.ui.components.SpectrumRing
+import ch.kohlnet.sillon.ui.i18n.S
+import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.theme.Sillon
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
@@ -57,7 +71,8 @@ private enum class PlayerPane { COVER, LYRICS, QUEUE }
 
 /**
  * Lecteur plein écran (façon iOS). ADAPTATIF : étroit (iPhone) = pochette en haut, contrôles dessous ;
- * large (iPad) = deux colonnes. La zone média bascule entre pochette / paroles / file d'attente.
+ * large (iPad) = deux colonnes. Pochette RONDE entourée d'un spectre. Sous la barre de progression :
+ * nom du serveur + qualité (vert). Volume, saut ±10 s, sortie audio.
  */
 @Composable
 fun FullPlayerScreen(onClose: () -> Unit) {
@@ -81,7 +96,7 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xxl),
             ) {
-                MediaArea(t, pane, Modifier.weight(1f).fillMaxHeight())
+                MediaArea(t, pane, playing, Modifier.weight(1f).fillMaxHeight())
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                     Controls(t, playing, position, duration, pane) { pane = it }
                 }
@@ -91,10 +106,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 modifier = Modifier.fillMaxSize().padding(Sillon.spacing.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                MediaArea(t, pane, Modifier.fillMaxWidth().weight(1f))
-                Spacer(Modifier.height(Sillon.spacing.xl))
-                Controls(t, playing, position, duration, pane) { pane = it }
+                MediaArea(t, pane, playing, Modifier.fillMaxWidth().weight(1f))
                 Spacer(Modifier.height(Sillon.spacing.l))
+                Controls(t, playing, position, duration, pane) { pane = it }
             }
         }
 
@@ -105,21 +119,31 @@ fun FullPlayerScreen(onClose: () -> Unit) {
 }
 
 @Composable
-private fun MediaArea(t: Track, pane: PlayerPane, modifier: Modifier) {
+private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
         when (pane) {
             PlayerPane.LYRICS -> LyricsPanel(t, Modifier.fillMaxSize())
             PlayerPane.QUEUE -> QueuePanel(Modifier.fillMaxSize())
-            PlayerPane.COVER -> AsyncImage(
-                model = t.coverUrl,
-                contentDescription = t.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
-                    .background(placeholderBrush(t.title.ifBlank { t.id })),
-            )
+            PlayerPane.COVER -> Box(
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                SpectrumRing(
+                    playing = playing,
+                    color = Sillon.colors.accentCuivre.copy(alpha = 0.55f),
+                    accent = Sillon.colors.signalTeal,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                AsyncImage(
+                    model = t.coverUrl,
+                    contentDescription = t.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize(0.74f)
+                        .clip(CircleShape)
+                        .background(placeholderBrush(t.title.ifBlank { t.id })),
+                )
+            }
         }
     }
 }
@@ -172,44 +196,92 @@ private fun ColumnScope.Controls(
         Text(formatTime(duration), style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
     }
 
-    Spacer(Modifier.height(Sillon.spacing.l))
+    // Provenance (nom du serveur) + qualité — petit, en vert, sous la barre.
+    val servers by MusicRepository.servers.collectAsState()
+    val serverName = servers.firstOrNull { it.id == t.serverId }?.name
+    val info = listOfNotNull(serverName, t.qualityLabel()).joinToString("  ·  ")
+    if (info.isNotBlank()) {
+        Text(
+            text = info,
+            style = Sillon.type.technique,
+            color = Sillon.colors.signalTeal,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    Spacer(Modifier.height(Sillon.spacing.m))
+
+    // Volume (applicatif, façon iOS).
+    val volume by PlayerController.volume.collectAsState()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
+    ) {
+        Icon(Icons.Filled.VolumeDown, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+        Slider(
+            value = volume,
+            onValueChange = { PlayerController.setVolume(it) },
+            valueRange = 0f..1f,
+            modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(
+                thumbColor = Sillon.colors.accentCuivre,
+                activeTrackColor = Sillon.colors.accentCuivre,
+                inactiveTrackColor = Sillon.colors.texteSourdine,
+            ),
+        )
+        Icon(Icons.Filled.VolumeUp, null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(18.dp))
+    }
+
+    Spacer(Modifier.height(Sillon.spacing.m))
 
     val shuffle by PlayerController.shuffle.collectAsState()
     val repeatMode by PlayerController.repeatMode.collectAsState()
 
+    // Transport : aléatoire, précédent, −10 s, lecture, +10 s, suivant, répéter.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.l, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = { PlayerController.toggleShuffle() }) {
-            Icon(Icons.Filled.Shuffle, "Aléatoire", tint = tintIf(shuffle), modifier = Modifier.size(24.dp))
+            Icon(Icons.Filled.Shuffle, "Aléatoire", tint = tintIf(shuffle), modifier = Modifier.size(22.dp))
         }
         IconButton(onClick = { PlayerController.previous() }) {
-            Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(34.dp))
+            Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(30.dp))
+        }
+        IconButton(onClick = { PlayerController.skipBackward() }) {
+            Icon(Icons.Filled.Replay10, "−10 s", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(28.dp))
         }
         IconButton(onClick = { PlayerController.togglePlayPause() }) {
             Icon(
                 if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                 contentDescription = if (playing) "Pause" else "Lecture",
                 tint = Sillon.colors.accentCuivre,
-                modifier = Modifier.size(56.dp),
+                modifier = Modifier.size(54.dp),
             )
         }
+        IconButton(onClick = { PlayerController.skipForward() }) {
+            Icon(Icons.Filled.Forward10, "+10 s", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(28.dp))
+        }
         IconButton(onClick = { PlayerController.next() }) {
-            Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(34.dp))
+            Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(30.dp))
         }
         IconButton(onClick = { PlayerController.cycleRepeat() }) {
             Icon(
                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                 contentDescription = "Répéter",
                 tint = tintIf(repeatMode != Player.REPEAT_MODE_OFF),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
     }
 
-    Spacer(Modifier.height(Sillon.spacing.s))
+    // Espace pour descendre les boutons paroles / file plus bas.
+    Spacer(Modifier.height(Sillon.spacing.xxl))
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -221,6 +293,36 @@ private fun ColumnScope.Controls(
         IconButton(onClick = { onSetPane(if (pane == PlayerPane.QUEUE) PlayerPane.COVER else PlayerPane.QUEUE) }) {
             Icon(Icons.Filled.QueueMusic, "File d'attente", tint = tintIf(pane == PlayerPane.QUEUE))
         }
+    }
+
+    Spacer(Modifier.height(Sillon.spacing.s))
+    OutputIndicator()
+}
+
+/** Indicateur de sortie audio (Bluetooth / casque / haut-parleur), façon iOS. */
+@Composable
+private fun OutputIndicator() {
+    val output by AudioOutputMonitor.output.collectAsState()
+    val icon: ImageVector
+    val label: String
+    when (output.transport) {
+        AudioOutputMonitor.Transport.BLUETOOTH -> {
+            icon = Icons.Filled.Bluetooth; label = output.name ?: str(S.OUT_BLUETOOTH)
+        }
+        AudioOutputMonitor.Transport.WIRED -> {
+            icon = Icons.Filled.Headphones; label = str(S.OUT_WIRED)
+        }
+        else -> {
+            icon = Icons.Filled.Speaker; label = str(S.OUT_SPEAKER)
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(16.dp))
+        Text(label, style = Sillon.type.technique, color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

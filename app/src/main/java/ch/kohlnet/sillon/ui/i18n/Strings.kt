@@ -18,6 +18,7 @@ enum class S {
     CONNEXION_EN_COURS, AJOUTE,
     ALBUMS_RECENTS, ALBUMS_PREFERES, ALBUMS_ALEATOIRES, REDECOUVRIR,
     BIBLIOTHEQUE_VIDE, AUCUN_FAVORI,
+    OUT_BLUETOOTH, OUT_WIRED, OUT_SPEAKER,
 }
 
 /** Construit la table d'une clé : fr est obligatoire (base), les autres sont optionnelles. */
@@ -78,6 +79,9 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
         "Nagins albums.\nConnectescha tai cun in server en ils parameters.",
         "Albüm yok.\nAyarlar'dan bir sunucuya bağlan.",
     ),
+    S.OUT_BLUETOOTH to tr("Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth", "Bluetooth"),
+    S.OUT_WIRED to tr("Casque", "Headphones", "Kopfhörer", "Cuffie", "Auriculares", "Auscultadores", "Kufje", "Slušalice", "Cufftgas", "Kulaklık"),
+    S.OUT_SPEAKER to tr("Haut-parleur", "Speaker", "Lautsprecher", "Altoparlante", "Altavoz", "Altifalante", "Altoparlant", "Zvučnik", "Plicontrol", "Hoparlör"),
     S.AUCUN_FAVORI to tr(
         "Aucun favori.\nTouche le cœur sur un album.",
         "No favorites.\nTap the heart on an album.",

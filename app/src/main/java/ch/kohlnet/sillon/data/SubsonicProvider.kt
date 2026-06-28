@@ -62,6 +62,14 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
     private val token = md5(config.password.orEmpty() + salt)
 
     private val http = HttpClient(OkHttp) {
+        engine {
+            config {
+                retryOnConnectionFailure(true)
+                connectTimeout(java.time.Duration.ofSeconds(30))
+                readTimeout(java.time.Duration.ofSeconds(60))
+                writeTimeout(java.time.Duration.ofSeconds(30))
+            }
+        }
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 

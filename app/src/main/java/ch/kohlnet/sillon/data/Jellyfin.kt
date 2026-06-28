@@ -96,6 +96,14 @@ class JellyfinClient(baseUrl: String) {
     val base: String = baseUrl.trim().trimEnd('/')
 
     private val http = HttpClient(OkHttp) {
+        engine {
+            config {
+                retryOnConnectionFailure(true)
+                connectTimeout(java.time.Duration.ofSeconds(30))
+                readTimeout(java.time.Duration.ofSeconds(60))   // grosses réponses /Items sur lien lent
+                writeTimeout(java.time.Duration.ofSeconds(30))
+            }
+        }
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
@@ -130,6 +138,8 @@ class JellyfinClient(baseUrl: String) {
                 parameter("StartIndex", start.toString())
                 parameter("Limit", pageSize.toString())
                 parameter("Fields", "AlbumArtist")
+                parameter("EnableImages", "false")     // allège la réponse → chargement plus rapide
+                parameter("EnableUserData", "false")
             }.body<ItemsResponse>()
             out += resp.items
             val total = resp.totalRecordCount
