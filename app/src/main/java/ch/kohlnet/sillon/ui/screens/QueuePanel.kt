@@ -47,7 +47,7 @@ private enum class QueueMode { ALBUM, QUEUE }
  * le code de la file (mode QUEUE, PlayerController.addToQueue/playNext, items du menu) reste en place →
  * il suffit de repasser à `true` pour la réactiver.
  */
-const val QUEUE_UI_ENABLED = false
+const val QUEUE_UI_ENABLED = true
 
 /**
  * Panneau latéral du lecteur. Bascule en haut :
@@ -61,7 +61,10 @@ const val QUEUE_UI_ENABLED = false
  */
 @Composable
 fun QueuePanel(modifier: Modifier = Modifier) {
+    // `queue` = file ACTIVE d'ExoPlayer ; `fileQueue` = file d'attente persistante (mix manuel). L'onglet
+    // « File d'attente » montre `fileQueue` ; l'onglet sélectionné décide laquelle est la file active.
     val queue by PlayerController.queue.collectAsState()
+    val fileQueue by PlayerController.fileQueue.collectAsState()
     val current by PlayerController.current.collectAsState()
     val allAlbums by MusicRepository.albums.collectAsState()
     var qmode by rememberSaveable { mutableStateOf(QueueMode.ALBUM) }
@@ -86,27 +89,34 @@ fun QueuePanel(modifier: Modifier = Modifier) {
         albumTracks = currentAlbum?.let { MusicRepository.tracks(it) } ?: emptyList()
     }
     // Repli si l'album n'a pas pu être chargé : titres de l'album déjà présents dans la file.
-    val albumList = remember(albumTracks, queue, current) {
+    val albumList = remember(albumTracks, fileQueue, current) {
         if (albumTracks.isNotEmpty()) albumTracks
         else {
             val alb = current?.album
-            (if (alb.isNullOrBlank()) queue else queue.filter { it.album == alb })
+            (if (alb.isNullOrBlank()) fileQueue else fileQueue.filter { it.album == alb })
                 .sortedBy { it.index ?: Int.MAX_VALUE }
         }
     }
 
-    // FILE D'ATTENTE = la file de lecture (l'album par défaut + les titres mixés À LA MAIN par
-    // l'utilisateur). Si elle est IDENTIQUE à l'album (même contenu, même ordre — comparaison par
-    // titre+artiste, robuste au multi-serveurs), le bouton « File d'attente » n'apporte rien → masqué.
-    val sameAsAlbum = remember(queue, albumList) {
-        albumList.isNotEmpty() && queue.map { it.matchKey() } == albumList.map { it.matchKey() }
+    // FILE D'ATTENTE = mix manuel persistant. Si elle est IDENTIQUE à l'album (même contenu, même ordre
+    // — comparaison par titre+artiste, robuste au multi-serveurs), le bouton « File » n'apporte rien → masqué.
+    val sameAsAlbum = remember(fileQueue, albumList) {
+        albumList.isNotEmpty() && fileQueue.map { it.matchKey() } == albumList.map { it.matchKey() }
     }
     LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) qmode = QueueMode.ALBUM }
     // File désactivée → toujours le mode Album (le panneau ne montre que les titres de l'album).
     val mode = if (!QUEUE_UI_ENABLED || sameAsAlbum) QueueMode.ALBUM else qmode
-    val items = if (mode == QueueMode.ALBUM) albumList else queue
+    val items = if (mode == QueueMode.ALBUM) albumList else fileQueue
 
+    // L'onglet sélectionné devient la file ACTIVE → le « suivant » suit l'album OU la file d'attente.
+    // useQueue conserve le morceau courant et est no-op si la file active est déjà la bonne.
     val cur = current
+    LaunchedEffect(mode, albumList, fileQueue, cur?.id, cur?.serverId) {
+        if (!QUEUE_UI_ENABLED) return@LaunchedEffect
+        if (mode == QueueMode.ALBUM) PlayerController.useQueue(albumList)
+        else PlayerController.useQueue(fileQueue)
+    }
+
     val currentIndex = items.indexOfFirst { t ->
         cur != null && ((t.id == cur.id && t.serverId == cur.serverId) || t.matchKey() == cur.matchKey())
     }
@@ -153,11 +163,9 @@ fun QueuePanel(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            // Si le titre est déjà dans la file en cours → y sauter (garde le contexte/serveur).
-                            // Sinon (onglet Album d'un titre hors file) → lancer l'album complet depuis ce titre.
-                            val byId = queue.indexOfFirst { it.id == track.id && it.serverId == track.serverId }
-                            val qi = if (byId >= 0) byId else queue.indexOfFirst { it.matchKey() == track.matchKey() }
-                            if (qi >= 0) PlayerController.playIndex(qi) else PlayerController.play(items, index)
+                            // La liste affichée (album OU file) devient la file ACTIVE et démarre à ce titre.
+                            // resetFile = false → la file d'attente manuelle est préservée.
+                            PlayerController.play(items, index, resetFile = false)
                         }
                         .padding(vertical = Sillon.spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,

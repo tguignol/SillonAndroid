@@ -44,8 +44,21 @@ object PlayerController {
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
+    /** File ACTIVE d'ExoPlayer (ce qui est réellement joué) — peut être l'album OU la file d'attente. */
     private val _queue = MutableStateFlow<List<Track>>(emptyList())
     val queue: StateFlow<List<Track>> = _queue.asStateFlow()
+
+    /**
+     * FILE D'ATTENTE persistante (mix manuel de l'utilisateur), INDÉPENDANTE de la file active : elle
+     * survit aux bascules d'onglet Album↔File. C'est ce que montre l'onglet « File d'attente ». L'onglet
+     * sélectionné décide laquelle (album ou cette file) est la file ACTIVE → quel est le « suivant ».
+     */
+    private val _fileQueue = MutableStateFlow<List<Track>>(emptyList())
+    val fileQueue: StateFlow<List<Track>> = _fileQueue.asStateFlow()
+
+    private fun keyOf(t: Track) = "${t.serverId}/${t.id}"
+    private fun sameTracks(a: List<Track>, b: List<Track>) =
+        a.size == b.size && a.indices.all { keyOf(a[it]) == keyOf(b[it]) }
 
     private val _shuffle = MutableStateFlow(false)
     val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
@@ -121,31 +134,68 @@ object PlayerController {
             )
             .build()
 
-    /** Démarre la lecture d'une file de morceaux à partir de `startIndex`. */
-    fun play(tracks: List<Track>, startIndex: Int) {
+    /**
+     * Démarre la lecture d'une liste à partir de `startIndex`. `resetFile` (défaut vrai) réinitialise la
+     * FILE D'ATTENTE sur cette liste (nouvelle lecture depuis un album/une playlist) ; à `false`, la file
+     * manuelle est PRÉSERVÉE (cas d'un tap dans l'onglet Album/File du lecteur, qui ne fait que basculer
+     * la file active et démarrer un titre).
+     */
+    fun play(tracks: List<Track>, startIndex: Int, resetFile: Boolean = true) {
         val c = controller ?: return
         _queue.value = tracks
+        if (resetFile) _fileQueue.value = tracks
         c.setMediaItems(tracks.map(::mediaItem), startIndex, 0L)
         c.prepare()
         c.play()
         _current.value = tracks.getOrNull(startIndex)
     }
 
-    /** Ajoute un titre À LA FIN de la file d'attente (démarre la lecture si la file était vide). */
-    fun addToQueue(track: Track) {
+    /**
+     * Bascule la file ACTIVE d'ExoPlayer vers `tracks` en CONSERVANT le morceau courant et sa position
+     * (changement d'onglet Album↔File dans le lecteur). No-op si déjà active → pas de reconstruction
+     * inutile pendant la lecture normale.
+     */
+    fun useQueue(tracks: List<Track>) {
         val c = controller ?: return
-        if (_queue.value.isEmpty()) { play(listOf(track), 0); return }
-        c.addMediaItem(mediaItem(track))
-        _queue.value = _queue.value + track
+        if (tracks.isEmpty() || sameTracks(_queue.value, tracks)) return
+        val cur = _current.value
+        var idx = if (cur != null) tracks.indexOfFirst { keyOf(it) == keyOf(cur) } else -1
+        if (idx < 0 && cur != null) idx = tracks.indexOfFirst { it.matchKey() == cur.matchKey() }
+        if (cur != null && idx < 0) return // morceau courant absent de la cible → on ne bascule pas (évite un saut)
+        if (idx < 0) idx = 0
+        val wasPlaying = c.isPlaying
+        val pos = c.currentPosition.coerceAtLeast(0)
+        _queue.value = tracks
+        c.setMediaItems(tracks.map(::mediaItem), idx, pos)
+        c.prepare()
+        if (wasPlaying) c.play()
     }
 
-    /** Insère un titre JUSTE APRÈS le morceau courant (« Lire ensuite »). */
+    /** Ajoute un titre À LA FIN de la file d'attente (manuelle). Démarre la lecture si tout est vide. */
+    fun addToQueue(track: Track) {
+        val c = controller ?: return
+        if (_fileQueue.value.isEmpty()) { play(listOf(track), 0); return }
+        val fileActive = sameTracks(_queue.value, _fileQueue.value)
+        _fileQueue.value = _fileQueue.value + track
+        if (fileActive) { // la file est la liste jouée → on répercute dans ExoPlayer
+            c.addMediaItem(mediaItem(track))
+            _queue.value = _queue.value + track
+        }
+    }
+
+    /** Insère un titre JUSTE APRÈS le morceau courant dans la file d'attente (« Lire ensuite »). */
     fun playNext(track: Track) {
         val c = controller ?: return
-        if (_queue.value.isEmpty()) { play(listOf(track), 0); return }
-        val at = (c.currentMediaItemIndex + 1).coerceIn(0, _queue.value.size)
-        c.addMediaItem(at, mediaItem(track))
-        _queue.value = _queue.value.toMutableList().also { it.add(at, track) }
+        if (_fileQueue.value.isEmpty()) { play(listOf(track), 0); return }
+        val fileActive = sameTracks(_queue.value, _fileQueue.value)
+        val cur = _current.value
+        val fi = if (cur != null) _fileQueue.value.indexOfFirst { keyOf(it) == keyOf(cur) } else -1
+        val at = (if (fi >= 0) fi + 1 else _fileQueue.value.size).coerceIn(0, _fileQueue.value.size)
+        _fileQueue.value = _fileQueue.value.toMutableList().also { it.add(at, track) }
+        if (!fileActive) return
+        val exoAt = (c.currentMediaItemIndex + 1).coerceIn(0, _queue.value.size)
+        c.addMediaItem(exoAt, mediaItem(track))
+        _queue.value = _queue.value.toMutableList().also { it.add(exoAt, track) }
     }
 
     fun togglePlayPause() {
@@ -233,6 +283,7 @@ object PlayerController {
     fun clearQueue() {
         controller?.clearMediaItems()
         _queue.value = emptyList()
+        _fileQueue.value = emptyList()
         _current.value = null
     }
 
