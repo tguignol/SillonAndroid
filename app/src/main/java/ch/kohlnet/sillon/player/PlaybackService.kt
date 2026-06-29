@@ -41,12 +41,14 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
-    /** Si l'utilisateur ferme l'app et que rien ne joue, on arrête le service. */
+    /**
+     * L'utilisateur BALAIE l'app (depuis les récents) = il veut la fermer → on met en pause et on arrête
+     * VRAIMENT le service. Sinon le service média « mediaPlayback » garde l'app « en cours » (Samsung
+     * « X applications en cours ») et elle peut « revenir ». N.B. ceci ne se déclenche QUE sur le balayage,
+     * PAS sur le bouton Accueil / changement d'app → la lecture en arrière-plan normale reste possible.
+     */
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = session?.player
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
-            stopSelf()
-        }
+        pauseAllPlayersAndStopSelf()
     }
 
     override fun onDestroy() {
