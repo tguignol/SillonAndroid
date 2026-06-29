@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -163,7 +164,7 @@ fun AccueilScreen() {
     val sa = seeAll
     if (sa != null) {
         when (sa) {
-            is SeeAll.Albums -> SeeAllAlbumsScreen(sa.title, sa.items, seeAllGridState, onBack = { seeAll = null }) { selected = it }
+            is SeeAll.Albums -> SeeAllAlbumsScreen(sa.title, sa.items, seeAllGridState, alphabetical = sa.alphabetical, onBack = { seeAll = null }) { selected = it }
             is SeeAll.Tracks -> SeeAllTracksScreen(sa.title, sa.items, onBack = { seeAll = null })
         }
         return
@@ -227,9 +228,11 @@ fun AccueilScreen() {
         } else {
             // Accès rapides (façon iOS) : Albums, Artistes, Mixer les favoris (lecture aléatoire des pistes favorites).
             val albumsTitle = str(S.ALBUMS)
+            // « Albums » → grille de TOUS les albums, alphabétique avec index A-Z (comme l'onglet Albums
+            // de la Bibliothèque), et non plus la barre fine en ordre naturel.
             QuickActions(
                 favoriteTracks = favoriteTracks,
-                onAlbums = { seeAll = SeeAll.Albums(albumsTitle, albums) },
+                onAlbums = { seeAll = SeeAll.Albums(albumsTitle, albums, alphabetical = true) },
                 onArtists = { showArtists = true },
             )
             val tRecents = str(S.ALBUMS_RECENTS)
@@ -468,7 +471,8 @@ private fun IndexedAlbumGrid(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(CARD),
             state = gridState,
-            modifier = Modifier.weight(1f),
+            // Vignettes décalées un peu vers la gauche (sans toucher l'en-tête, les segments ni l'index A-Z).
+            modifier = Modifier.weight(1f).offset(x = -Sillon.spacing.s),
             horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
             verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
             contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
@@ -1113,7 +1117,7 @@ private fun AlbumCard(album: Album, modifier: Modifier = Modifier, onClick: () -
 /** Cible d'un « voir tout » de section : une grille d'albums ou une liste de titres. */
 private sealed interface SeeAll {
     val title: String
-    data class Albums(override val title: String, val items: List<Album>) : SeeAll
+    data class Albums(override val title: String, val items: List<Album>, val alphabetical: Boolean = false) : SeeAll
     data class Tracks(override val title: String, val items: List<Track>) : SeeAll
 }
 
@@ -1136,7 +1140,13 @@ private fun SeeAllHeader(title: String, onBack: () -> Unit) {
 
 /** « Voir tout » → grille d'albums (même design que la bibliothèque), dans l'ordre de la section. */
 @Composable
-private fun SeeAllAlbumsScreen(title: String, albums: List<Album>, gridState: LazyGridState, onBack: () -> Unit, onClick: (Album) -> Unit) {
+private fun SeeAllAlbumsScreen(title: String, albums: List<Album>, gridState: LazyGridState, alphabetical: Boolean = false, onBack: () -> Unit, onClick: (Album) -> Unit) {
+    val scope = rememberCoroutineScope()
+    // « alphabetical » : tri A→Z + index alphabétique latéral (ex. action rapide « Albums »).
+    // Sinon : ordre de la section (récents, plus écoutés…) + barre de défilement fine.
+    val shown = remember(albums, alphabetical) {
+        if (alphabetical) albums.sortedBy { azSortKey(it.title) } else albums
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1146,15 +1156,19 @@ private fun SeeAllAlbumsScreen(title: String, albums: List<Album>, gridState: La
     ) {
         SeeAllHeader(title, onBack)
         Spacer(Modifier.height(Sillon.spacing.m))
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(CARD),
-            state = gridState,
-            modifier = Modifier.fillMaxSize().lazyGridScrollbar(gridState, Sillon.colors.texteSourdine),
-            horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
-            verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
-            contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
-        ) {
-            items(albums, key = { it.id }) { album -> AlbumCard(album) { onClick(album) } }
+        if (alphabetical) {
+            IndexedAlbumGrid(shown, gridState, scope, onClick)
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(CARD),
+                state = gridState,
+                modifier = Modifier.fillMaxSize().lazyGridScrollbar(gridState, Sillon.colors.texteSourdine),
+                horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+                verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
+                contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+            ) {
+                items(shown, key = { it.id }) { album -> AlbumCard(album) { onClick(album) } }
+            }
         }
     }
 }

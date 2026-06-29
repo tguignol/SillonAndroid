@@ -20,7 +20,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,14 +59,15 @@ const val QUEUE_UI_ENABLED = true
  * Barre de défilement fine ; défile automatiquement vers le morceau courant.
  */
 @Composable
-fun QueuePanel(modifier: Modifier = Modifier) {
+fun QueuePanel(modifier: Modifier = Modifier, file: Boolean = false, onFileChange: (Boolean) -> Unit = {}) {
     // `queue` = file ACTIVE d'ExoPlayer ; `fileQueue` = file d'attente persistante (mix manuel). L'onglet
     // « File d'attente » montre `fileQueue` ; l'onglet sélectionné décide laquelle est la file active.
+    // Le MODE est piloté de l'extérieur (`file`) pour que le bouton « File d'attente » du lecteur ET les
+    // chips du panneau restent synchronisés.
     val queue by PlayerController.queue.collectAsState()
     val fileQueue by PlayerController.fileQueue.collectAsState()
     val current by PlayerController.current.collectAsState()
     val allAlbums by MusicRepository.albums.collectAsState()
-    var qmode by rememberSaveable { mutableStateOf(QueueMode.ALBUM) }
     val listState = rememberLazyListState()
 
     // ALBUM = l'INTÉGRALITÉ des titres de l'album du morceau courant, chargée depuis le serveur
@@ -103,9 +103,9 @@ fun QueuePanel(modifier: Modifier = Modifier) {
     val sameAsAlbum = remember(fileQueue, albumList) {
         albumList.isNotEmpty() && fileQueue.map { it.matchKey() } == albumList.map { it.matchKey() }
     }
-    LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) qmode = QueueMode.ALBUM }
-    // File désactivée → toujours le mode Album (le panneau ne montre que les titres de l'album).
-    val mode = if (!QUEUE_UI_ENABLED || sameAsAlbum) QueueMode.ALBUM else qmode
+    LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) onFileChange(false) }
+    // File désactivée OU identique à l'album OU mode « Album » demandé → on montre les titres de l'album.
+    val mode = if (!QUEUE_UI_ENABLED || sameAsAlbum || !file) QueueMode.ALBUM else QueueMode.QUEUE
     val items = if (mode == QueueMode.ALBUM) albumList else fileQueue
 
     // L'onglet sélectionné devient la file ACTIVE → le « suivant » suit l'album OU la file d'attente.
@@ -132,10 +132,10 @@ fun QueuePanel(modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
             ) {
-                QueueChip("Album", mode == QueueMode.ALBUM) { qmode = QueueMode.ALBUM }
+                QueueChip("Album", mode == QueueMode.ALBUM) { onFileChange(false) }
                 // Bouton « File d'attente » seulement si la file DIFFÈRE de l'album en cours.
                 if (!sameAsAlbum) {
-                    QueueChip("File d'attente", mode == QueueMode.QUEUE) { qmode = QueueMode.QUEUE }
+                    QueueChip("File d'attente", mode == QueueMode.QUEUE) { onFileChange(true) }
                 }
             }
         }

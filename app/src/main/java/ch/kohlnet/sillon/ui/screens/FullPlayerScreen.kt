@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Repeat
@@ -98,6 +99,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
     val position by PlayerController.positionMs.collectAsState()
     val duration by PlayerController.durationMs.collectAsState()
     var pane by remember { mutableStateOf(PlayerPane.COVER) }
+    // Mode du panneau file : false = « Album » (titres de l'album), true = « File d'attente » (mix manuel).
+    // Partagé par le bouton File d'attente du lecteur ET le panneau (chips), pour les deux mises en page.
+    var queueFile by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { PlayerController.refreshVolume() } // refléter le volume système courant
     val t = track ?: return
 
@@ -119,9 +123,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     // tight = true : colonne ~moitié de l'écran interne → transport compacté pour que
                     // les 7 boutons (dont « répéter ») tiennent sans être coupés.
-                    Controls(t, playing, position, duration, pane, showQueue = false, tight = true) { pane = it }
+                    Controls(t, playing, position, duration, pane, showQueue = false, tight = true, queueFile = queueFile, onQueueFileChange = { queueFile = it }) { pane = it }
                     Spacer(Modifier.height(Sillon.spacing.l))
-                    QueuePanel(Modifier.weight(1f).fillMaxWidth())
+                    QueuePanel(Modifier.weight(1f).fillMaxWidth(), file = queueFile, onFileChange = { queueFile = it })
                 }
             }
         } else {
@@ -129,9 +133,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 modifier = Modifier.fillMaxSize().padding(Sillon.spacing.xl),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                MediaArea(t, pane, playing, wide = false, Modifier.fillMaxWidth().weight(1f))
+                MediaArea(t, pane, playing, wide = false, Modifier.fillMaxWidth().weight(1f), file = queueFile, onFileChange = { queueFile = it })
                 Spacer(Modifier.height(Sillon.spacing.l))
-                Controls(t, playing, position, duration, pane) { pane = it }
+                Controls(t, playing, position, duration, pane, queueFile = queueFile, onQueueFileChange = { queueFile = it }) { pane = it }
             }
         }
 
@@ -178,7 +182,7 @@ private fun SleepTimerButton(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, wide: Boolean, modifier: Modifier) {
+private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, wide: Boolean, modifier: Modifier, file: Boolean = false, onFileChange: (Boolean) -> Unit = {}) {
     Box(modifier, contentAlignment = Alignment.Center) {
         when (pane) {
             PlayerPane.LYRICS ->
@@ -196,7 +200,7 @@ private fun MediaArea(t: Track, pane: PlayerPane, playing: Boolean, wide: Boolea
                 } else {
                     LyricsPanel(t, Modifier.fillMaxSize())
                 }
-            PlayerPane.QUEUE -> QueuePanel(Modifier.fillMaxSize())
+            PlayerPane.QUEUE -> QueuePanel(Modifier.fillMaxSize(), file = file, onFileChange = onFileChange)
             PlayerPane.EQUALIZER -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
                 EqualizerPanel()
             }
@@ -256,6 +260,8 @@ private fun ColumnScope.Controls(
     pane: PlayerPane,
     showQueue: Boolean = true,
     tight: Boolean = false,
+    queueFile: Boolean = false,
+    onQueueFileChange: (Boolean) -> Unit = {},
     onSetPane: (PlayerPane) -> Unit,
 ) {
     Text(
@@ -405,17 +411,9 @@ private fun ColumnScope.Controls(
     // Boutons (favori/paroles/égaliseur/file) rapprochés du transport et du volume.
     Spacer(Modifier.height(Sillon.spacing.s))
 
-    // Favori PISTE (cœur) + favori ALBUM + Paroles + Égaliseur + File.
+    // Favori PISTE (cœur) + File d'attente + Paroles + Égaliseur + (étroit) Titres de l'album.
     val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()
     val isFav = t.matchKey() in favTracks
-    // Album du titre courant, retrouvé dans la biblio → favori ALBUM (sans favoriser tous les titres).
-    val allAlbums by MusicRepository.albums.collectAsState()
-    val favAlbums by MusicRepository.favorites.collectAsState()
-    val currentAlbum = remember(allAlbums, t.album, t.artist) {
-        val byTitle = allAlbums.filter { it.title == t.album }
-        byTitle.firstOrNull { it.artist == t.artist } ?: byTitle.firstOrNull()
-    }
-    val isAlbumFav = currentAlbum != null && favAlbums.any { it.matchKey() == currentAlbum.matchKey() }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xl, Alignment.CenterHorizontally),
@@ -427,7 +425,27 @@ private fun ColumnScope.Controls(
                 tint = tintIf(isFav),
             )
         }
-        // Favori ALBUM (s'ajoute aux « Albums préférés ») — visible seulement si l'album est en biblio.
+        // FILE D'ATTENTE (mix manuel) — remplace l'ancien « favori d'album » (jugé redondant avec le cœur).
+        // Écran large : le panneau est déjà visible à droite → on bascule juste son mode sur « File d'attente ».
+        // Écran étroit : on ouvre le panneau directement sur la File d'attente.
+        IconButton(onClick = {
+            onQueueFileChange(true)
+            if (showQueue) onSetPane(PlayerPane.QUEUE)
+        }) {
+            Icon(
+                Icons.AutoMirrored.Filled.PlaylistPlay,
+                contentDescription = "File d'attente",
+                tint = tintIf(queueFile && (pane == PlayerPane.QUEUE || !showQueue)),
+            )
+        }
+        /* ANCIEN — favori d'ALBUM (conservé au cas où ; le cœur fait déjà le favori PISTE) :
+        val allAlbums by MusicRepository.albums.collectAsState()
+        val favAlbums by MusicRepository.favorites.collectAsState()
+        val currentAlbum = remember(allAlbums, t.album, t.artist) {
+            val byTitle = allAlbums.filter { it.title == t.album }
+            byTitle.firstOrNull { it.artist == t.artist } ?: byTitle.firstOrNull()
+        }
+        val isAlbumFav = currentAlbum != null && favAlbums.any { it.matchKey() == currentAlbum.matchKey() }
         if (currentAlbum != null) {
             IconButton(onClick = { currentAlbum?.let { MusicRepository.toggleFavorite(it) } }) {
                 Icon(
@@ -437,6 +455,7 @@ private fun ColumnScope.Controls(
                 )
             }
         }
+        */
         IconButton(onClick = { onSetPane(if (pane == PlayerPane.LYRICS) PlayerPane.COVER else PlayerPane.LYRICS) }) {
             Icon(Icons.Filled.Lyrics, "Paroles", tint = tintIf(pane == PlayerPane.LYRICS))
         }
@@ -444,8 +463,11 @@ private fun ColumnScope.Controls(
             Icon(Icons.Filled.GraphicEq, "Égaliseur", tint = tintIf(pane == PlayerPane.EQUALIZER))
         }
         if (showQueue) {
-            IconButton(onClick = { onSetPane(if (pane == PlayerPane.QUEUE) PlayerPane.COVER else PlayerPane.QUEUE) }) {
-                Icon(Icons.Filled.QueueMusic, "Titres de l'album", tint = tintIf(pane == PlayerPane.QUEUE))
+            IconButton(onClick = {
+                onQueueFileChange(false)
+                onSetPane(if (pane == PlayerPane.QUEUE) PlayerPane.COVER else PlayerPane.QUEUE)
+            }) {
+                Icon(Icons.Filled.QueueMusic, "Titres de l'album", tint = tintIf(pane == PlayerPane.QUEUE && !queueFile))
             }
         }
     }
