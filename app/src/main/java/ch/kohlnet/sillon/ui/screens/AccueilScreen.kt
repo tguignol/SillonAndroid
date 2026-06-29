@@ -311,7 +311,7 @@ private fun PlaylistCarousel(playlists: List<ch.kohlnet.sillon.data.Playlist>, o
     }
 }
 
-private enum class LibraryMode { ALBUMS, ARTISTS, PLAYLISTS }
+private enum class LibraryMode { RECENTS, ALBUMS, ARTISTS, PLAYLISTS }
 
 /** Entrée artiste : nom, serveurs d'origine, et un album représentatif (pour déduire le format). */
 private data class ArtistEntry(val name: String, val types: List<ServerType>, val sample: Album)
@@ -330,6 +330,7 @@ fun BibliothequeScreen() {
     var selectedPlaylist by remember { mutableStateOf<String?>(null) }
     var selectedServerPlaylist by remember { mutableStateOf<ServerPlaylist?>(null) }
     val gridState = rememberLazyGridState()   // hissés → survivent à l'ouverture d'un détail
+    val recentsGridState = rememberLazyGridState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -386,27 +387,21 @@ fun BibliothequeScreen() {
         }
         Spacer(Modifier.height(Sillon.spacing.m))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(
-                selected = mode == LibraryMode.ALBUMS,
-                onClick = { mode = LibraryMode.ALBUMS },
-                shape = SegmentedButtonDefaults.itemShape(0, 3),
-                colors = sillonSegmentedColors(),
-                icon = {},
-            ) { Text(str(S.ALBUMS), style = Sillon.type.corps) }
-            SegmentedButton(
-                selected = mode == LibraryMode.ARTISTS,
-                onClick = { mode = LibraryMode.ARTISTS },
-                shape = SegmentedButtonDefaults.itemShape(1, 3),
-                colors = sillonSegmentedColors(),
-                icon = {},
-            ) { Text(str(S.ARTISTES), style = Sillon.type.corps) }
-            SegmentedButton(
-                selected = mode == LibraryMode.PLAYLISTS,
-                onClick = { mode = LibraryMode.PLAYLISTS },
-                shape = SegmentedButtonDefaults.itemShape(2, 3),
-                colors = sillonSegmentedColors(),
-                icon = {},
-            ) { Text(str(S.PLAYLISTS), style = Sillon.type.corps) }
+            val libModes = listOf(
+                LibraryMode.RECENTS to str(S.RECENTS),
+                LibraryMode.ALBUMS to str(S.ALBUMS),
+                LibraryMode.ARTISTS to str(S.ARTISTES),
+                LibraryMode.PLAYLISTS to str(S.PLAYLISTS),
+            )
+            libModes.forEachIndexed { i, (m, label) ->
+                SegmentedButton(
+                    selected = mode == m,
+                    onClick = { mode = m },
+                    shape = SegmentedButtonDefaults.itemShape(i, libModes.size),
+                    colors = sillonSegmentedColors(),
+                    icon = {},
+                ) { Text(label, style = Sillon.type.corps.copy(fontSize = 13.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+            }
         }
         Spacer(Modifier.height(Sillon.spacing.m))
 
@@ -416,6 +411,8 @@ fun BibliothequeScreen() {
         } else if (albums.isEmpty()) {
             if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else when (mode) {
+            // Récents = albums dans leur ordre NATUREL (les plus récents d'abord), sans tri alpha ni index A-Z.
+            LibraryMode.RECENTS -> AlbumGrid(albums, Modifier.fillMaxSize(), recentsGridState) { selectedAlbum = it }
             LibraryMode.ALBUMS -> IndexedAlbumGrid(sortedAlbums, gridState, scope) { selectedAlbum = it }
             LibraryMode.ARTISTS -> IndexedArtistList(artists, listState, scope) { selectedArtist = it }
             LibraryMode.PLAYLISTS -> {}
@@ -863,6 +860,8 @@ private fun TrackGridCarousel(tracks: List<Track>, counts: List<Int>? = null, on
 /** Une cellule de [TrackGridCarousel] : vignette à gauche + titre/artiste (et nb de lectures) à côté. */
 @Composable
 private fun TrackGridRow(track: Track, count: Int?, onClick: () -> Unit) {
+    val servers by MusicRepository.servers.collectAsState()
+    val type = servers.firstOrNull { it.id == track.serverId }?.type
     Row(
         Modifier.width(CARD * 1.5f).fillMaxHeight().clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
@@ -883,8 +882,10 @@ private fun TrackGridRow(track: Track, count: Int?, onClick: () -> Unit) {
             if (track.artist.isNotBlank()) {
                 Text(track.artist, style = Sillon.type.corps.copy(fontSize = 13.sp), color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (count != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            // Mini-icône de PROVENANCE (Jellyfin / Navidrome) + nb de lectures.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (type != null) ServerMark(type, Modifier.size(12.dp))
+                if (count != null) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(13.dp))
                     Text("$count", style = Sillon.type.technique, color = Sillon.colors.texteSourdine)
                 }
@@ -970,9 +971,10 @@ private fun AlbumGridScreen(title: String, albums: List<Album>, emptyText: Strin
 
 /** Grille d'albums réutilisable (Recherche…). */
 @Composable
-fun AlbumGrid(albums: List<Album>, modifier: Modifier = Modifier, onClick: (Album) -> Unit) {
+fun AlbumGrid(albums: List<Album>, modifier: Modifier = Modifier, state: LazyGridState = rememberLazyGridState(), onClick: (Album) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(CARD),
+        state = state,
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
         verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
