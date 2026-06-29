@@ -48,6 +48,11 @@ class SillonWidget : AppWidgetProvider() {
         appWidgetIds.forEach { WidgetPrefs.clear(context, it) }
     }
 
+    // Redimensionnement → on réadapte (masque/affiche sortie + progression selon la hauteur).
+    override fun onAppWidgetOptionsChanged(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, newOptions: android.os.Bundle) {
+        update(context)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
@@ -128,6 +133,12 @@ class SillonWidget : AppWidgetProvider() {
                         views.setImageViewResource(R.id.widget_cover_bg, R.drawable.widget_default_cover)
                     }
                 }
+
+                // Widget COURT → on masque la ligne de sortie et la progression (garde titre + contrôles).
+                val minH = mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+                val compact = minH in 1 until 128
+                views.setViewVisibility(R.id.widget_output_row, if (compact) View.GONE else View.VISIBLE)
+                views.setViewVisibility(R.id.widget_progress_row, if (compact) View.GONE else View.VISIBLE)
 
                 views.setOnClickPendingIntent(R.id.widget_root, openApp(ctx))
                 views.setOnClickPendingIntent(R.id.widget_output_row, outputPanel(ctx))
