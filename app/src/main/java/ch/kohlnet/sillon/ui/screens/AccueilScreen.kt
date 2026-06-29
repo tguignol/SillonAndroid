@@ -37,8 +37,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -115,12 +119,34 @@ fun AccueilScreen() {
     val servers by MusicRepository.servers.collectAsState()
     val favTrackKeys by MusicRepository.favoriteTrackKeys.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
+    var selectedArtist by remember { mutableStateOf<String?>(null) }
+    var showArtists by remember { mutableStateOf(false) }
     var seeAll by remember { mutableStateOf<SeeAll?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
+
+    // Artistes (pour l'accès rapide « Artistes »), même calcul que la Bibliothèque.
+    val artists = remember(albums, servers) {
+        albums.filter { it.artist.isNotBlank() }
+            .groupBy { it.artist.trim().lowercase() }
+            .map { (_, list) ->
+                val name = list.first().artist.trim()
+                val ids = list.flatMap { a -> a.sources.ifEmpty { listOf(a.serverId) } }.distinct()
+                val types = ids.mapNotNull { id -> servers.firstOrNull { it.id == id }?.type }.distinct()
+                ArtistEntry(name, types, list.first())
+            }
+            .sortedBy { azSortKey(it.name) }
+    }
 
     val sel = selected
     if (sel != null) {
         AlbumDetailScreen(sel, onBack = { selected = null })
+        return
+    }
+    selectedArtist?.let {
+        ArtistDetailScreen(it, onBack = { selectedArtist = null }); return
+    }
+    if (showArtists) {
+        ArtistsListInline(artists, onBack = { showArtists = false }) { selectedArtist = it }
         return
     }
     // « Voir tout » d'une section → vue plein écran type bibliothèque (l'album ouvert prime, cf. plus haut).
@@ -189,6 +215,13 @@ fun AccueilScreen() {
         if (albums.isEmpty()) {
             if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else {
+            // Accès rapides (façon iOS) : Albums, Artistes, Mixer les favoris (lecture aléatoire des pistes favorites).
+            val albumsTitle = str(S.ALBUMS)
+            QuickActions(
+                favoriteTracks = favoriteTracks,
+                onAlbums = { seeAll = SeeAll.Albums(albumsTitle, albums) },
+                onArtists = { showArtists = true },
+            )
             val tRecents = str(S.ALBUMS_RECENTS)
             Section(tRecents, onSeeAll = { seeAll = SeeAll.Albums(tRecents, albums) }) {
                 AlbumCarousel(albums.take(30), onClick)
@@ -633,6 +666,59 @@ private fun Section(title: String, onSeeAll: (() -> Unit)? = null, content: @Com
             }
         }
         content()
+    }
+}
+
+/** Rangée d'accès rapides en haut de l'Accueil (façon iOS) : Albums, Artistes, Mixer les favoris. */
+@Composable
+private fun QuickActions(favoriteTracks: List<Track>, onAlbums: () -> Unit, onArtists: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Sillon.spacing.xl),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+    ) {
+        QuickActionCard(str(S.ALBUMS), Icons.Filled.Album, Modifier.weight(1f), onClick = onAlbums)
+        QuickActionCard(str(S.ARTISTES), Icons.Filled.Mic, Modifier.weight(1f), onClick = onArtists)
+        // Mixer les favoris = lecture ALÉATOIRE des pistes favorites ; désactivé si aucune.
+        QuickActionCard(
+            str(S.MIXER_FAVORIS), Icons.Filled.Shuffle, Modifier.weight(1f),
+            enabled = favoriteTracks.isNotEmpty(),
+        ) { if (favoriteTracks.isNotEmpty()) PlayerController.play(favoriteTracks.shuffled(), 0) }
+    }
+}
+
+/** Carte d'accès rapide (icône teal + libellé) sur fond surélevé, façon iOS `QuickAction`. */
+@Composable
+private fun QuickActionCard(label: String, icon: ImageVector, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    Column(
+        modifier = modifier
+            .height(64.dp)
+            .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+            .background(Sillon.colors.surfaceElevee)
+            .clickable(enabled = enabled, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs, Alignment.CenterVertically),
+    ) {
+        Icon(icon, contentDescription = null, tint = if (enabled) Sillon.colors.signalTeal else Sillon.colors.texteSourdine, modifier = Modifier.size(22.dp))
+        Text(label, style = Sillon.type.technique, color = if (enabled) Sillon.colors.texteIvoire else Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Liste d'artistes plein écran (accès rapide « Artistes » de l'Accueil), avec index A-Z. */
+@Composable
+private fun ArtistsListInline(artists: List<ArtistEntry>, onBack: () -> Unit, onOpen: (String) -> Unit) {
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    Column(
+        modifier = Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = Sillon.spacing.xl).padding(top = Sillon.spacing.l),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Sillon.colors.texteIvoire)
+            }
+            Text(str(S.ARTISTES), style = Sillon.type.display, color = Sillon.colors.texteIvoire)
+        }
+        Spacer(Modifier.height(Sillon.spacing.m))
+        if (artists.isEmpty()) EmptyHint(str(S.BIBLIOTHEQUE_VIDE)) else IndexedArtistList(artists, listState, scope) { onOpen(it) }
     }
 }
 
