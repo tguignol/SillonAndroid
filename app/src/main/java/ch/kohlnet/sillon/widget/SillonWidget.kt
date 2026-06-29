@@ -59,15 +59,22 @@ class SillonWidget : AppWidgetProvider() {
             ACTION_PLAY_PAUSE -> PlayerController.togglePlayPause()
             ACTION_NEXT -> PlayerController.next()
             ACTION_PREV -> PlayerController.previous()
+            ACTION_TOGGLE_BG -> {
+                val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+                if (id != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    WidgetPrefs.setTranslucent(context, id, !WidgetPrefs.isTranslucent(context, id))
+                }
+            }
         }
-        if (intent.action in TRANSPORT_ACTIONS) update(context)
+        if (intent.action in REFRESH_ACTIONS) update(context)
     }
 
     companion object {
         const val ACTION_PLAY_PAUSE = "ch.kohlnet.sillon.widget.PLAY_PAUSE"
         const val ACTION_NEXT = "ch.kohlnet.sillon.widget.NEXT"
         const val ACTION_PREV = "ch.kohlnet.sillon.widget.PREV"
-        private val TRANSPORT_ACTIONS = setOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV)
+        const val ACTION_TOGGLE_BG = "ch.kohlnet.sillon.widget.TOGGLE_BG"
+        private val REFRESH_ACTIONS = setOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV, ACTION_TOGGLE_BG)
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         // Par URL : pochette NETTE (pour le carré en mode translucide) + FLOUTÉE (pour le fond plein).
@@ -153,6 +160,7 @@ class SillonWidget : AppWidgetProvider() {
 
                 views.setOnClickPendingIntent(R.id.widget_root, openApp(ctx))
                 views.setOnClickPendingIntent(R.id.widget_output_row, outputPanel(ctx))
+                views.setOnClickPendingIntent(R.id.widget_bg_toggle, toggleBg(ctx, id))
                 views.setOnClickPendingIntent(R.id.widget_play, broadcast(ctx, ACTION_PLAY_PAUSE, 1))
                 views.setOnClickPendingIntent(R.id.widget_prev, broadcast(ctx, ACTION_PREV, 2))
                 views.setOnClickPendingIntent(R.id.widget_next, broadcast(ctx, ACTION_NEXT, 3))
@@ -204,6 +212,14 @@ class SillonWidget : AppWidgetProvider() {
         private fun broadcast(context: Context, action: String, code: Int): PendingIntent {
             val intent = Intent(context, SillonWidget::class.java).setAction(action)
             return PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+
+        /** Bascule translucide ↔ pochette POUR CE widget (l'id voyage dans l'intent). */
+        private fun toggleBg(context: Context, id: Int): PendingIntent {
+            val intent = Intent(context, SillonWidget::class.java)
+                .setAction(ACTION_TOGGLE_BG)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+            return PendingIntent.getBroadcast(context, 1000 + id, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
 
         private fun loadBitmap(url: String): Bitmap? {

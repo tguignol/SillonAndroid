@@ -173,4 +173,14 @@
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/widget_bg_toggle"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="top|end"
+        android:padding="8dp"
+        android:alpha="0.55"
+        android:src="@drawable/ic_widget_bg"
+        android:contentDescription="Changer le fond" />
 </FrameLayout>
