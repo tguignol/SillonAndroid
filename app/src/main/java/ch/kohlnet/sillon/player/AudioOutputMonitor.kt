@@ -42,6 +42,13 @@ object AudioOutputMonitor {
     @Volatile private var a2dp: BluetoothA2dp? = null
     private var receiverRegistered = false
 
+    /**
+     * Appelé (sur le thread principal) quand un casque BT est là mais que `getCodecStatus` échoue — en
+     * pratique faute d'association CompanionDeviceManager. L'Activity s'en sert pour proposer l'association,
+     * puis rappeler [onBluetoothPermissionGranted] qui relit le codec.
+     */
+    var onCodecBlocked: ((BluetoothDevice) -> Unit)? = null
+
     fun init(context: Context) {
         if (am != null) return
         val ctx = context.applicationContext
@@ -129,17 +136,20 @@ object AudioOutputMonitor {
         val proxy = a2dp ?: return null
         val ctx = appContext ?: return null
         if (!hasBtPermission(ctx)) return null
-        // NB Android 13+/Samsung : `getCodecStatus` exige en plus une association CDM (CompanionDeviceManager)
-        // avec l'appareil, sinon SecurityException → on retombe ici sur null (« Bluetooth » seul).
-        return runCatching {
-            val device = proxy.connectedDevices.firstOrNull() ?: return null
+        val device = runCatching { proxy.connectedDevices.firstOrNull() }.getOrNull() ?: return null
+        return try {
             val status = BluetoothA2dp::class.java
                 .getMethod("getCodecStatus", BluetoothDevice::class.java)
                 .invoke(proxy, device) ?: return null
             val config = status.javaClass.getMethod("getCodecConfig").invoke(status) ?: return null
             val type = config.javaClass.getMethod("getCodecType").invoke(config) as? Int ?: return null
             codecName(type)
-        }.getOrNull()
+        } catch (t: Throwable) {
+            // Android 13+ : `getCodecStatus` lève « does not have a CDM association » sans association
+            // CompanionDeviceManager. On le signale à l'Activity pour proposer l'association puis relire.
+            onCodecBlocked?.invoke(device)
+            null
+        }
     }
 
     /** Type de codec A2DP (constantes `BluetoothCodecConfig.SOURCE_CODEC_TYPE_*`) → libellé. */

@@ -1,12 +1,19 @@
 package ch.kohlnet.sillon
 
 import android.Manifest
+import android.bluetooth.BluetoothDevice
+import android.companion.AssociationInfo
+import android.companion.AssociationRequest
+import android.companion.BluetoothDeviceFilter
+import android.companion.CompanionDeviceManager
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
@@ -35,6 +42,15 @@ class MainActivity : ComponentActivity() {
             if (granted) AudioOutputMonitor.onBluetoothPermissionGranted()
         }
 
+    // Adresses BT déjà proposées à l'association cette session (évite de redemander en boucle).
+    private val promptedBtAddresses = mutableSetOf<String>()
+
+    // Dialogue système d'association CompanionDeviceManager : à l'acceptation → relire le codec.
+    private val associateLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode == RESULT_OK) AudioOutputMonitor.onBluetoothPermissionGranted()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MusicRepository.init(applicationContext)
@@ -48,6 +64,8 @@ class MainActivity : ComponentActivity() {
         Playlists.init(applicationContext)
         requestNotificationPermission()
         requestBluetoothPermission()
+        // Quand un casque BT est là mais le codec illisible (pas d'association CDM) → proposer l'association.
+        AudioOutputMonitor.onCodecBlocked = { device -> runOnUiThread { maybeAssociateCompanion(device) } }
         enableEdgeToEdge()
         setContent {
             val appearance by AppSettings.appearance.collectAsState()
@@ -79,5 +97,44 @@ class MainActivity : ComponentActivity() {
         ) {
             requestBtConnect.launch(Manifest.permission.BLUETOOTH_CONNECT)
         }
+    }
+
+    /**
+     * Propose une association CompanionDeviceManager avec [device] (dialogue système ponctuel), nécessaire
+     * sous Android 13+ pour lire le codec A2DP. Une seule fois par appareil/session ; si déjà associé, on
+     * relit simplement le codec.
+     */
+    private fun maybeAssociateCompanion(device: BluetoothDevice) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) return
+        val address = runCatching { device.address }.getOrNull() ?: return
+        if (address in promptedBtAddresses) return
+        val cdm = getSystemService(CompanionDeviceManager::class.java) ?: return
+        val alreadyAssociated = runCatching {
+            cdm.myAssociations.any { it.deviceMacAddress?.toString().equals(address, ignoreCase = true) }
+        }.getOrDefault(false)
+        if (alreadyAssociated) { AudioOutputMonitor.onBluetoothPermissionGranted(); return }
+        promptedBtAddresses += address
+        val request = AssociationRequest.Builder()
+            .addDeviceFilter(BluetoothDeviceFilter.Builder().setAddress(address).build())
+            .setSingleDevice(true)
+            .build()
+        runCatching {
+            cdm.associate(request, mainExecutor, object : CompanionDeviceManager.Callback() {
+                override fun onAssociationPending(intentSender: IntentSender) {
+                    runCatching { associateLauncher.launch(IntentSenderRequest.Builder(intentSender).build()) }
+                }
+                override fun onAssociationCreated(associationInfo: AssociationInfo) {
+                    AudioOutputMonitor.onBluetoothPermissionGranted()
+                }
+                override fun onFailure(error: CharSequence?) {}
+            })
+        }
+    }
+
+    override fun onDestroy() {
+        AudioOutputMonitor.onCodecBlocked = null // éviter de retenir l'Activity
+        super.onDestroy()
     }
 }
