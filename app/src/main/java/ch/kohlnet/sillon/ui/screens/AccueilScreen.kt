@@ -38,13 +38,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -457,35 +456,24 @@ private fun SortToggle(ascending: Boolean, onToggle: () -> Unit) {
 }
 
 /**
- * Deux icônes de direction du tri alphabétique : flèche MONTANTE = ascendant (A→Z), flèche
- * DESCENDANTE = descendant (Z→A). La direction active est en cuivre ; on choisit directement le sens.
+ * Tri alphabétique : UNE seule icône « ↑↓ » qui BASCULE le sens à chaque tap (A→Z ⇄ Z→A),
+ * comme l'exemple demandé. Pastille cuivre sur fond surélevé.
  */
 @Composable
 private fun SortDirectionButtons(ascending: Boolean, onSet: (Boolean) -> Unit) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SortDirIcon(Icons.Filled.ArrowUpward, "Tri ascendant (A→Z)", selected = ascending) { onSet(true) }
-        SortDirIcon(Icons.Filled.ArrowDownward, "Tri descendant (Z→A)", selected = !ascending) { onSet(false) }
-    }
-}
-
-@Composable
-private fun SortDirIcon(icon: ImageVector, desc: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) Sillon.colors.accentCuivre else Sillon.colors.surfaceElevee)
-            .clickable(onClick = onClick)
+            .background(Sillon.colors.surfaceElevee)
+            .clickable { onSet(!ascending) }
             .padding(Sillon.spacing.xs),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            icon,
-            contentDescription = desc,
-            tint = if (selected) Sillon.colors.texteIvoire else Sillon.colors.texteSourdine,
-            modifier = Modifier.size(18.dp),
+            Icons.Filled.SwapVert,
+            contentDescription = if (ascending) "Tri A→Z — taper pour Z→A" else "Tri Z→A — taper pour A→Z",
+            tint = Sillon.colors.accentCuivre,
+            modifier = Modifier.size(22.dp),
         )
     }
 }
