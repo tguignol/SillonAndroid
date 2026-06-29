@@ -236,7 +236,18 @@ private fun ColumnScope.Controls(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    // (L'album n'est plus répété ici : il figure déjà au-dessus de la liste des titres de l'album.)
+    // Titre de l'album SOUS l'artiste (demandé), un cran plus discret.
+    t.album?.takeIf { it.isNotBlank() }?.let { album ->
+        Text(
+            text = album,
+            style = Sillon.type.technique,
+            color = Sillon.colors.texteSourdine,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 
     Spacer(Modifier.height(Sillon.spacing.l))
 

@@ -86,6 +86,7 @@ import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.AzScrollIndex
 import ch.kohlnet.sillon.ui.components.ServerMark
 import ch.kohlnet.sillon.ui.components.SourceBadge
+import ch.kohlnet.sillon.ui.components.sillonSegmentedColors
 import ch.kohlnet.sillon.ui.components.azSortKey
 import ch.kohlnet.sillon.ui.components.azTargetIndex
 import ch.kohlnet.sillon.ui.components.indexLetter
@@ -348,16 +349,22 @@ fun BibliothequeScreen() {
                 selected = mode == LibraryMode.ALBUMS,
                 onClick = { mode = LibraryMode.ALBUMS },
                 shape = SegmentedButtonDefaults.itemShape(0, 3),
+                colors = sillonSegmentedColors(),
+                icon = {},
             ) { Text(str(S.ALBUMS), style = Sillon.type.corps) }
             SegmentedButton(
                 selected = mode == LibraryMode.ARTISTS,
                 onClick = { mode = LibraryMode.ARTISTS },
                 shape = SegmentedButtonDefaults.itemShape(1, 3),
+                colors = sillonSegmentedColors(),
+                icon = {},
             ) { Text(str(S.ARTISTES), style = Sillon.type.corps) }
             SegmentedButton(
                 selected = mode == LibraryMode.PLAYLISTS,
                 onClick = { mode = LibraryMode.PLAYLISTS },
                 shape = SegmentedButtonDefaults.itemShape(2, 3),
+                colors = sillonSegmentedColors(),
+                icon = {},
             ) { Text(str(S.PLAYLISTS), style = Sillon.type.corps) }
         }
         Spacer(Modifier.height(Sillon.spacing.m))
@@ -549,6 +556,8 @@ fun FavorisScreen() {
                 selected = mode == FavMode.ALBUMS,
                 onClick = { mode = FavMode.ALBUMS },
                 shape = SegmentedButtonDefaults.itemShape(0, 3),
+                colors = sillonSegmentedColors(),
+                icon = {},
             ) {
                 Text(str(S.ALBUMS_PREFERES), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
@@ -556,6 +565,8 @@ fun FavorisScreen() {
                 selected = mode == FavMode.TRACKS,
                 onClick = { mode = FavMode.TRACKS },
                 shape = SegmentedButtonDefaults.itemShape(1, 3),
+                colors = sillonSegmentedColors(),
+                icon = {},
             ) {
                 Text(str(S.PISTES_PREFEREES), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
@@ -563,6 +574,8 @@ fun FavorisScreen() {
                 selected = mode == FavMode.PLAYLISTS,
                 onClick = { mode = FavMode.PLAYLISTS },
                 shape = SegmentedButtonDefaults.itemShape(2, 3),
+                colors = sillonSegmentedColors(),
+                icon = {},
             ) {
                 Text(str(S.PLAYLISTS), style = Sillon.type.corps.copy(fontSize = 14.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }

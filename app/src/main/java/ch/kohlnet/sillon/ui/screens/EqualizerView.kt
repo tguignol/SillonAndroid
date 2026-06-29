@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.EQMode
 import ch.kohlnet.sillon.data.EqualizerState
+import ch.kohlnet.sillon.ui.components.sillonSegmentedColors
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
 import ch.kohlnet.sillon.ui.theme.Sillon
@@ -88,6 +90,7 @@ fun EqualizerPanel() {
                 onCheckedChange = { EqualizerState.setEnabled(it) },
                 colors = SwitchDefaults.colors(checkedTrackColor = Sillon.colors.accentCuivre),
             )
+            Spacer(Modifier.width(Sillon.spacing.m)) // léger espace entre la bascule et le libellé
             Text(
                 if (enabled) str(S.ACTIVE) else str(S.INACTIF),
                 style = Sillon.type.corps,
@@ -107,6 +110,8 @@ fun EqualizerPanel() {
                     selected = mode == m,
                     onClick = { EqualizerState.setMode(m) },
                     shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                    colors = sillonSegmentedColors(),
+                    icon = {},
                 ) { Text(label, style = Sillon.type.corps.copy(fontSize = 12.sp), maxLines = 1) }
             }
         }

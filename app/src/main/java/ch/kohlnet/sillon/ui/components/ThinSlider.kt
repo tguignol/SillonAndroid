@@ -2,7 +2,6 @@ package ch.kohlnet.sillon.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -37,13 +36,14 @@ fun ThinSlider(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                // GLISSER uniquement (plus de « tap-to-seek ») : un simple tap ne déplace plus la position
+                // ni le volume → fini les sauts accidentels quand on visait autre chose. On capte aussi le
+                // tap initial du glissement (onDragStart) pour que le 1er contact réagisse sans devoir bouger.
                 .pointerInput(enabled) {
                     if (!enabled) return@pointerInput
-                    detectTapGestures { onValueChange(valueAt(it.x)) }
-                }
-                .pointerInput(enabled) {
-                    if (!enabled) return@pointerInput
-                    detectHorizontalDragGestures { change, _ ->
+                    detectHorizontalDragGestures(
+                        onDragStart = { onValueChange(valueAt(it.x)) },
+                    ) { change, _ ->
                         onValueChange(valueAt(change.position.x))
                         change.consume()
                     }

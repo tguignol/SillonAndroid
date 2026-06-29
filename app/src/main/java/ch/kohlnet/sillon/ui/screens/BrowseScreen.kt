@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.ui.components.lazyColumnScrollbar
+import ch.kohlnet.sillon.ui.components.sillonSegmentedColors
 import ch.kohlnet.sillon.ui.theme.Sillon
 
 private enum class BrowseMode { GENRE, DECADE }
@@ -93,10 +94,10 @@ fun BrowseScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(Sillon.spacing.m))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(selected = mode == BrowseMode.GENRE, onClick = { mode = BrowseMode.GENRE }, shape = SegmentedButtonDefaults.itemShape(0, 2)) {
+            SegmentedButton(selected = mode == BrowseMode.GENRE, onClick = { mode = BrowseMode.GENRE }, shape = SegmentedButtonDefaults.itemShape(0, 2), colors = sillonSegmentedColors(), icon = {}) {
                 Text("Genres", style = Sillon.type.corps)
             }
-            SegmentedButton(selected = mode == BrowseMode.DECADE, onClick = { mode = BrowseMode.DECADE }, shape = SegmentedButtonDefaults.itemShape(1, 2)) {
+            SegmentedButton(selected = mode == BrowseMode.DECADE, onClick = { mode = BrowseMode.DECADE }, shape = SegmentedButtonDefaults.itemShape(1, 2), colors = sillonSegmentedColors(), icon = {}) {
                 Text("Décennies", style = Sillon.type.corps)
             }
         }

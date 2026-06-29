@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -60,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.MusicRepository
 import ch.kohlnet.sillon.player.PlayerController
-import ch.kohlnet.sillon.ui.components.ThinSlider
 import ch.kohlnet.sillon.ui.theme.placeholderBrush
 import coil3.compose.AsyncImage
 import ch.kohlnet.sillon.ui.i18n.S
@@ -225,16 +225,24 @@ private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
     val isFav = t.matchKey() in favTracks
     val dur = duration.coerceAtLeast(1L)
 
+    // Progression du mini-lecteur = AFFICHAGE SEUL (pas de seek) : un tap dessus doit AGRANDIR le lecteur,
+    // pas avancer dans la chanson (le réglage de position se fait dans le grand lecteur).
+    val frac = (position.coerceIn(0L, dur).toFloat() / dur.toFloat()).coerceIn(0f, 1f)
     val progress = @Composable { modifier: Modifier ->
-        ThinSlider(
-            value = position.coerceIn(0L, dur).toFloat(),
-            onValueChange = { PlayerController.seekTo(it.toLong()) },
-            valueRange = 0f..dur.toFloat(),
-            activeColor = Sillon.colors.accentCuivre,
-            inactiveColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
-            thumbColor = Sillon.colors.accentCuivre,
-            modifier = modifier,
-        )
+        Box(
+            modifier = modifier
+                .height(3.dp)
+                .clip(CircleShape)
+                .background(Sillon.colors.texteSourdine.copy(alpha = 0.3f)),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(frac)
+                    .clip(CircleShape)
+                    .background(Sillon.colors.accentCuivre),
+            )
+        }
     }
     val playButton = @Composable {
         Box(

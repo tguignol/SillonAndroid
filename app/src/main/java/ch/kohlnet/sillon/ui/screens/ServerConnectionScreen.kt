@@ -76,6 +76,7 @@ import ch.kohlnet.sillon.data.ServerType
 import ch.kohlnet.sillon.ui.components.ServerMark
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
+import ch.kohlnet.sillon.ui.components.sillonSegmentedColors
 import ch.kohlnet.sillon.ui.theme.Sillon
 
 /** Réglages : apparence + langue + MULTI-SERVEUR. Sections repliables (Apparence, Ajouter un serveur). */
@@ -140,6 +141,8 @@ fun ServerConnectionScreen() {
                         selected = type == t,
                         onClick = { type = t },
                         shape = SegmentedButtonDefaults.itemShape(i, ServerType.entries.size),
+                        colors = sillonSegmentedColors(),
+                        icon = {},
                         // Libellé sur UNE seule ligne (typo réduite + ellipse de secours) : « Subsonic /
                         // Navidrome » est long et passait sinon sur 2 lignes → segment plus haut, décalé
                         // par rapport aux autres. Ainsi les 3 segments gardent la même hauteur.
@@ -255,6 +258,8 @@ fun ServerConnectionScreen() {
                         selected = appearance == mode,
                         onClick = { AppSettings.setAppearance(mode) },
                         shape = SegmentedButtonDefaults.itemShape(i, AppearanceMode.entries.size),
+                        colors = sillonSegmentedColors(),
+                        icon = {},
                     ) { Text(label, style = Sillon.type.corps) }
                 }
             }
