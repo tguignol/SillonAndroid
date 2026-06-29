@@ -37,7 +37,8 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Repeat
@@ -416,9 +417,11 @@ private fun ColumnScope.Controls(
     // Boutons (favori/paroles/égaliseur/file) rapprochés du transport et du volume.
     Spacer(Modifier.height(Sillon.spacing.s))
 
-    // Favori PISTE (cœur) + File d'attente + Paroles + Égaliseur + (étroit) Titres de l'album.
+    // Favori PISTE (cœur) + Ajouter à la file + Paroles + Égaliseur + (étroit) Titres de l'album.
     val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()
     val isFav = t.matchKey() in favTracks
+    val fileQueue by PlayerController.fileQueue.collectAsState()
+    val inQueue = fileQueue.any { it.matchKey() == t.matchKey() }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xl, Alignment.CenterHorizontally),
@@ -430,19 +433,15 @@ private fun ColumnScope.Controls(
                 tint = tintIf(isFav),
             )
         }
-        // FILE D'ATTENTE (mix manuel) — remplace l'ancien « favori d'album » (jugé redondant avec le cœur).
-        // Écran large : le panneau est déjà visible à droite → on bascule juste son mode sur « File d'attente ».
-        // Écran étroit : on ouvre le panneau directement sur la File d'attente.
+        // AJOUTER / RETIRER le titre EN COURS de la file d'attente manuelle. Passe en ✓ cuivre quand le
+        // titre y est. (Le changement de VUE Album/File se fait via les pastilles du panneau.)
         IconButton(onClick = {
-            // Vraie BASCULE : re-clic → on revient à la vue Album (et le cuivre s'éteint).
-            val on = !queueFile
-            onQueueFileChange(on)
-            if (showQueue) onSetPane(if (on) PlayerPane.QUEUE else PlayerPane.COVER)
+            if (inQueue) PlayerController.removeFromQueue(t) else PlayerController.addToQueue(t)
         }) {
             Icon(
-                Icons.AutoMirrored.Filled.PlaylistPlay,
-                contentDescription = "File d'attente",
-                tint = tintIf(queueFile && (pane == PlayerPane.QUEUE || !showQueue)),
+                if (inQueue) Icons.AutoMirrored.Filled.PlaylistAddCheck else Icons.AutoMirrored.Filled.PlaylistAdd,
+                contentDescription = if (inQueue) "Retirer de la file d'attente" else "Ajouter à la file d'attente",
+                tint = tintIf(inQueue),
             )
         }
         /* ANCIEN — favori d'ALBUM (conservé au cas où ; le cœur fait déjà le favori PISTE) :

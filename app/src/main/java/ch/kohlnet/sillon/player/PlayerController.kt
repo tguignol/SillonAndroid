@@ -211,6 +211,21 @@ object PlayerController {
         _queue.value = _queue.value.toMutableList().also { it.add(exoAt, track) }
     }
 
+    /** Retire un titre de la file d'attente manuelle (et de la file active ExoPlayer si elle est jouée). */
+    fun removeFromQueue(track: Track) {
+        val c = controller ?: return
+        val fileActive = _fileQueue.value.isNotEmpty() && sameTracks(_queue.value, _fileQueue.value)
+        if (fileActive) {
+            val idx = _queue.value.indexOfFirst { it.matchKey() == track.matchKey() }
+            // On ne retire pas le morceau EN COURS de la file active (éviter de couper la lecture).
+            if (idx >= 0 && idx != c.currentMediaItemIndex) {
+                c.removeMediaItem(idx)
+                _queue.value = _queue.value.toMutableList().also { it.removeAt(idx) }
+            }
+        }
+        _fileQueue.value = _fileQueue.value.filterNot { it.matchKey() == track.matchKey() }
+    }
+
     fun togglePlayPause() {
         val c = controller ?: return
         if (c.isPlaying) c.pause() else c.play()
