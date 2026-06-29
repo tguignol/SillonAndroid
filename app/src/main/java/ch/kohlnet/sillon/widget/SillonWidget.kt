@@ -6,12 +6,18 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 import ch.kohlnet.sillon.MainActivity
 import ch.kohlnet.sillon.R
+import ch.kohlnet.sillon.data.AppSettings
+import ch.kohlnet.sillon.data.AppearanceMode
+import ch.kohlnet.sillon.player.AudioOutputMonitor
 import ch.kohlnet.sillon.player.PlayerController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,16 +35,14 @@ object WidgetPrefs {
 }
 
 /**
- * Widget « Lecture en cours » (écran d'accueil), façon iOS : POCHETTE FLOUTÉE en fond (coloré) + voile
- * pour la lisibilité, titre/artiste/qualité + transport (précédent / lecture-pause / suivant). Option de
- * FOND TRANSLUCIDE par widget (le papier peint transparaît). Tap sur le corps = ouvre l'app. Reconstruit
- * à chaque changement de morceau / d'état via [update] (appelé par le PlayerController).
+ * Widget « Lecture en cours », façon Sortie média / iOS : POCHETTE FLOUTÉE en fond (coloré) + voile,
+ * nom de la SORTIE audio en haut, grand titre/artiste, BARRE DE PROGRESSION + temps, transport. Respecte
+ * le mode clair/sombre/système des réglages Sillon. Option de FOND TRANSLUCIDE par widget. Tap corps =
+ * ouvre l'app ; tap sortie = sélecteur de sortie système. Rebâti via [update] (PlayerController).
  */
 class SillonWidget : AppWidgetProvider() {
 
-    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        update(context)
-    }
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) = update(context)
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         appWidgetIds.forEach { WidgetPrefs.clear(context, it) }
@@ -63,7 +67,6 @@ class SillonWidget : AppWidgetProvider() {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         private val coverCache = LinkedHashMap<String, Bitmap>()
 
-        /** Reconstruit TOUS les widgets posés depuis l'état courant du lecteur (chacun selon son option). */
         fun update(context: Context) {
             val ctx = context.applicationContext
             val mgr = AppWidgetManager.getInstance(ctx)
@@ -72,45 +75,87 @@ class SillonWidget : AppWidgetProvider() {
 
             val track = PlayerController.current.value
             val playing = PlayerController.isPlaying.value
+            val pos = PlayerController.positionMs.value
+            val dur = PlayerController.durationMs.value.coerceAtLeast(1L)
             val url = track?.coverUrl
             val blurred = url?.let { coverCache[it] }
             if (url != null && blurred == null) scope.launch { loadAndCache(ctx, url) }
+            val dark = isDark(ctx)
+            val out = AudioOutputMonitor.output.value
 
             for (id in ids) {
                 val translucent = WidgetPrefs.isTranslucent(ctx, id)
+                // Mode « cover » = texte clair sur la pochette ; sinon (translucide / repli) on suit le thème.
+                val coverMode = !translucent && blurred != null
+                val onDark = coverMode || dark
+                val primary = if (onDark) 0xFFFFFFFF.toInt() else 0xFF15140F.toInt()
+                val secondary = if (onDark) 0xCCFFFFFF.toInt() else 0x99000000.toInt()
+                val faint = if (onDark) 0xB3FFFFFF.toInt() else 0x80000000.toInt()
+
                 val views = RemoteViews(ctx.packageName, R.layout.widget_now_playing)
 
                 views.setTextViewText(R.id.widget_title, track?.title ?: ctx.getString(R.string.app_name))
                 views.setTextViewText(R.id.widget_artist, track?.artist ?: "")
-                views.setTextViewText(R.id.widget_quality, track?.qualityLabel() ?: "")
-                views.setImageViewResource(
-                    R.id.widget_play_icon,
-                    if (playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play,
-                )
+                views.setTextViewText(R.id.widget_output_name, outputLabel(out))
+                views.setTextViewText(R.id.widget_position, fmt(pos))
+                views.setTextViewText(R.id.widget_duration, fmt(dur))
+                views.setProgressBar(R.id.widget_progress, 1000, ((pos.toFloat() / dur) * 1000).toInt().coerceIn(0, 1000), false)
+                views.setImageViewResource(R.id.widget_play_icon, if (playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play)
+
+                views.setTextColor(R.id.widget_title, primary)
+                views.setTextColor(R.id.widget_artist, secondary)
+                views.setTextColor(R.id.widget_output_name, secondary)
+                views.setTextColor(R.id.widget_position, faint)
+                views.setTextColor(R.id.widget_duration, faint)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    views.setColorStateList(R.id.widget_progress, "setProgressTintList", ColorStateList.valueOf(primary))
+                }
 
                 if (translucent) {
-                    // Papier peint visible : ni pochette de fond ni voile sombre (le texte garde son ombre).
                     views.setViewVisibility(R.id.widget_cover_bg, View.GONE)
                     views.setViewVisibility(R.id.widget_scrim, View.GONE)
-                    views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg_translucent)
+                    views.setInt(R.id.widget_root, "setBackgroundResource",
+                        if (dark) R.drawable.widget_bg_translucent else R.drawable.widget_bg_translucent_light)
                 } else {
-                    views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg)
-                    views.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
+                    views.setInt(R.id.widget_root, "setBackgroundResource",
+                        if (dark) R.drawable.widget_bg else R.drawable.widget_bg_light)
                     if (blurred != null) {
                         views.setViewVisibility(R.id.widget_cover_bg, View.VISIBLE)
+                        views.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
                         views.setImageViewBitmap(R.id.widget_cover_bg, blurred)
                     } else {
                         views.setViewVisibility(R.id.widget_cover_bg, View.GONE)
+                        views.setViewVisibility(R.id.widget_scrim, View.GONE)
                     }
                 }
 
                 views.setOnClickPendingIntent(R.id.widget_root, openApp(ctx))
+                views.setOnClickPendingIntent(R.id.widget_output_row, outputPanel(ctx))
                 views.setOnClickPendingIntent(R.id.widget_play, broadcast(ctx, ACTION_PLAY_PAUSE, 1))
                 views.setOnClickPendingIntent(R.id.widget_prev, broadcast(ctx, ACTION_PREV, 2))
                 views.setOnClickPendingIntent(R.id.widget_next, broadcast(ctx, ACTION_NEXT, 3))
 
                 mgr.updateAppWidget(id, views)
             }
+        }
+
+        /** Mode clair/sombre EFFECTIF selon les réglages Sillon (clair / sombre / système). */
+        private fun isDark(ctx: Context): Boolean = when (AppSettings.appearance.value) {
+            AppearanceMode.LIGHT -> false
+            AppearanceMode.DARK -> true
+            AppearanceMode.SYSTEM ->
+                (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
+
+        private fun outputLabel(out: AudioOutputMonitor.Output): String = out.name ?: when (out.transport) {
+            AudioOutputMonitor.Transport.BLUETOOTH -> "Bluetooth"
+            AudioOutputMonitor.Transport.WIRED -> "Écouteurs"
+            else -> "Haut-parleur"
+        }
+
+        private fun fmt(ms: Long): String {
+            val s = (ms / 1000).coerceAtLeast(0)
+            return "%d:%02d".format(s / 60, s % 60)
         }
 
         private suspend fun loadAndCache(ctx: Context, url: String) {
@@ -123,27 +168,24 @@ class SillonWidget : AppWidgetProvider() {
         private fun openApp(context: Context): PendingIntent {
             val intent = Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            return PendingIntent.getActivity(
-                context, 0, intent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
+            return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+
+        private fun outputPanel(context: Context): PendingIntent {
+            val intent = Intent("android.settings.panel.action.MEDIA_OUTPUT").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return PendingIntent.getActivity(context, 4, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
 
         private fun broadcast(context: Context, action: String, code: Int): PendingIntent {
             val intent = Intent(context, SillonWidget::class.java).setAction(action)
-            return PendingIntent.getBroadcast(
-                context, code, intent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
+            return PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
 
-        /** Télécharge + décode la pochette (les URLs portent déjà leurs identifiants ; lecture seule). */
         private fun loadBitmap(url: String): Bitmap? {
             val conn = URL(url).openConnection().apply { connectTimeout = 8000; readTimeout = 8000 }
             return conn.getInputStream().use { BitmapFactory.decodeStream(it) }
         }
 
-        /** Flou « pauvre » (réduction puis agrandissement bilinéaire) → fond coloré façon Sortie média. */
         private fun blur(src: Bitmap?): Bitmap? {
             src ?: return null
             val small = Bitmap.createScaledBitmap(src, (src.width / 14).coerceAtLeast(1), (src.height / 14).coerceAtLeast(1), true)

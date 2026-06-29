@@ -124,12 +124,15 @@ object PlayerController {
 
         // Boucle légère de mise à jour position/durée (thread principal).
         scope.launch {
+            var tick = 0
             while (true) {
                 controller?.let {
                     _positionMs.value = it.currentPosition.coerceAtLeast(0)
                     _durationMs.value = it.duration.coerceAtLeast(0)
                 }
                 refreshVolume() // synchronise la barre de volume du lecteur avec les touches physiques
+                // Avance la barre de progression du widget (~toutes les 2,5 s pendant la lecture).
+                if (++tick % 5 == 0 && _isPlaying.value) appContext?.let { SillonWidget.update(it) }
                 delay(500)
             }
         }
