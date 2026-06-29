@@ -590,7 +590,7 @@ private fun TrackListRow(track: Track, onClick: () -> Unit) {
                 Text(track.artist, style = Sillon.type.corps.copy(fontSize = 13.sp), color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (type != null) ServerMark(type, Modifier.size(14.dp))
+        if (type != null && servers.count { it.active } > 1) ServerMark(type, Modifier.size(14.dp))
         TrackMenuButton(track)
         track.durationMs?.let { Text(seeAllDuration(it), style = Sillon.type.technique, color = Sillon.colors.texteSourdine) }
     }
@@ -601,6 +601,9 @@ private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
     // Format audio (FLAC/ALAC/WAV…) récupéré à la volée pour l'album représentatif (caché côté repo).
     var format by remember(entry.sample.id) { mutableStateOf<String?>(null) }
     LaunchedEffect(entry.sample.id) { format = MusicRepository.albumFormat(entry.sample) }
+    // Icône de provenance affichée uniquement si PLUSIEURS serveurs actifs (sinon redondante).
+    val servers by MusicRepository.servers.collectAsState()
+    val multiServer = servers.count { it.active } > 1
 
     Row(
         modifier = Modifier
@@ -635,7 +638,7 @@ private fun ArtistRow(entry: ArtistEntry, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            entry.types.forEach { t -> ServerMark(t, Modifier.size(14.dp)) }
+            if (multiServer) entry.types.forEach { t -> ServerMark(t, Modifier.size(14.dp)) }
         }
     }
 }
@@ -975,9 +978,10 @@ private fun TrackGridRow(track: Track, count: Int?, onClick: () -> Unit) {
             if (track.artist.isNotBlank()) {
                 Text(track.artist, style = Sillon.type.corps.copy(fontSize = 13.sp), color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            // Mini-icône de PROVENANCE (Jellyfin / Navidrome) + nb de lectures.
+            // Mini-icône de PROVENANCE (Jellyfin / Navidrome) + nb de lectures. Provenance affichée
+            // UNIQUEMENT si PLUSIEURS serveurs sont actifs (sinon redondante → masquée, comme les albums).
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (type != null) ServerMark(type, Modifier.size(12.dp))
+                if (type != null && servers.count { it.active } > 1) ServerMark(type, Modifier.size(12.dp))
                 if (count != null) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(13.dp))
                     Text("$count", style = Sillon.type.technique, color = Sillon.colors.texteSourdine)

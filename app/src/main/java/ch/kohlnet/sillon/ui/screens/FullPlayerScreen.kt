@@ -3,6 +3,7 @@ package ch.kohlnet.sillon.ui.screens
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -112,6 +113,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Sillon.colors.fondNoir)
+            // Calque PLEIN ÉCRAN : consommer TOUS les taps, sinon un tap dans une zone vide traverse vers
+            // l'écran derrière (ex. ouvrait le menu ⋮ d'une rangée du détail d'album).
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
             .safeDrawingPadding(),
     ) {
         val wide = maxWidth >= 600.dp
