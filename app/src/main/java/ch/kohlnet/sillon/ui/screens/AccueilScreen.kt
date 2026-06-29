@@ -38,6 +38,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
@@ -455,8 +457,8 @@ private fun SortToggle(ascending: Boolean, onToggle: () -> Unit) {
 }
 
 /**
- * Deux puces de direction du tri alphabétique : « A→Z » (ascendant) et « Z→A » (descendant).
- * La direction active est en cuivre ; on choisit directement le sens (au lieu d'une bascule unique).
+ * Deux icônes de direction du tri alphabétique : flèche MONTANTE = ascendant (A→Z), flèche
+ * DESCENDANTE = descendant (Z→A). La direction active est en cuivre ; on choisit directement le sens.
  */
 @Composable
 private fun SortDirectionButtons(ascending: Boolean, onSet: (Boolean) -> Unit) {
@@ -464,23 +466,28 @@ private fun SortDirectionButtons(ascending: Boolean, onSet: (Boolean) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SortChip("A→Z", selected = ascending) { onSet(true) }
-        SortChip("Z→A", selected = !ascending) { onSet(false) }
+        SortDirIcon(Icons.Filled.ArrowUpward, "Tri ascendant (A→Z)", selected = ascending) { onSet(true) }
+        SortDirIcon(Icons.Filled.ArrowDownward, "Tri descendant (Z→A)", selected = !ascending) { onSet(false) }
     }
 }
 
 @Composable
-private fun SortChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = label,
-        style = Sillon.type.technique,
-        color = if (selected) Sillon.colors.texteIvoire else Sillon.colors.texteSourdine,
+private fun SortDirIcon(icon: ImageVector, desc: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(if (selected) Sillon.colors.accentCuivre else Sillon.colors.surfaceElevee)
             .clickable(onClick = onClick)
-            .padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
-    )
+            .padding(Sillon.spacing.xs),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = desc,
+            tint = if (selected) Sillon.colors.texteIvoire else Sillon.colors.texteSourdine,
+            modifier = Modifier.size(18.dp),
+        )
+    }
 }
 
 @Composable
