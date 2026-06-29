@@ -98,14 +98,10 @@ fun QueuePanel(modifier: Modifier = Modifier, file: Boolean = false, onFileChang
         }
     }
 
-    // FILE D'ATTENTE = mix manuel persistant. Si elle est IDENTIQUE à l'album (même contenu, même ordre
-    // — comparaison par titre+artiste, robuste au multi-serveurs), le bouton « File » n'apporte rien → masqué.
-    val sameAsAlbum = remember(fileQueue, albumList) {
-        albumList.isNotEmpty() && fileQueue.map { it.matchKey() } == albumList.map { it.matchKey() }
-    }
-    LaunchedEffect(sameAsAlbum) { if (sameAsAlbum) onFileChange(false) }
-    // File désactivée OU identique à l'album OU mode « Album » demandé → on montre les titres de l'album.
-    val mode = if (!QUEUE_UI_ENABLED || sameAsAlbum || !file) QueueMode.ALBUM else QueueMode.QUEUE
+    // Mode du panneau piloté de l'extérieur par `file` (bouton du lecteur + chips ci-dessous) : ALBUM =
+    // titres de l'album ; QUEUE = la file de lecture réelle (mix manuel). Quand rien n'est mixé, la file
+    // ÉGALE l'album (c'est normal) — mais on respecte quand même le choix pour que la bascule soit visible.
+    val mode = if (!QUEUE_UI_ENABLED || !file) QueueMode.ALBUM else QueueMode.QUEUE
     val items = if (mode == QueueMode.ALBUM) albumList else fileQueue
 
     // L'onglet sélectionné devient la file ACTIVE → le « suivant » suit l'album OU la file d'attente.
@@ -133,10 +129,7 @@ fun QueuePanel(modifier: Modifier = Modifier, file: Boolean = false, onFileChang
                 horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.s),
             ) {
                 QueueChip("Album", mode == QueueMode.ALBUM) { onFileChange(false) }
-                // Bouton « File d'attente » seulement si la file DIFFÈRE de l'album en cours.
-                if (!sameAsAlbum) {
-                    QueueChip("File d'attente", mode == QueueMode.QUEUE) { onFileChange(true) }
-                }
+                QueueChip("File d'attente", mode == QueueMode.QUEUE) { onFileChange(true) }
             }
         }
         if (mode == QueueMode.ALBUM) {

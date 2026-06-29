@@ -139,8 +139,13 @@ fun FullPlayerScreen(onClose: () -> Unit) {
             }
         }
 
-        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart)) {
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Fermer", tint = Sillon.colors.texteIvoire)
+        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).size(48.dp)) {
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = "Fermer",
+                tint = Sillon.colors.texteIvoire,
+                modifier = Modifier.size(34.dp),
+            )
         }
         SleepTimerButton(Modifier.align(Alignment.TopEnd))
     }
@@ -429,8 +434,10 @@ private fun ColumnScope.Controls(
         // Écran large : le panneau est déjà visible à droite → on bascule juste son mode sur « File d'attente ».
         // Écran étroit : on ouvre le panneau directement sur la File d'attente.
         IconButton(onClick = {
-            onQueueFileChange(true)
-            if (showQueue) onSetPane(PlayerPane.QUEUE)
+            // Vraie BASCULE : re-clic → on revient à la vue Album (et le cuivre s'éteint).
+            val on = !queueFile
+            onQueueFileChange(on)
+            if (showQueue) onSetPane(if (on) PlayerPane.QUEUE else PlayerPane.COVER)
         }) {
             Icon(
                 Icons.AutoMirrored.Filled.PlaylistPlay,

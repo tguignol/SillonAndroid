@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -90,6 +91,7 @@ fun EqualizerPanel() {
                 checked = enabled,
                 onCheckedChange = { EqualizerState.setEnabled(it) },
                 colors = SwitchDefaults.colors(checkedTrackColor = Sillon.colors.accentCuivre),
+                modifier = Modifier.scale(0.8f), // affiné : un cran plus petit, plus élégant
             )
             Spacer(Modifier.width(Sillon.spacing.m)) // léger espace entre la bascule et le libellé
             Text(
