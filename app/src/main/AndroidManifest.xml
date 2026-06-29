@@ -39,6 +39,15 @@
             </intent-filter>
         </service>
 
+        <activity
+            android:name=".widget.SillonWidgetConfig"
+            android:exported="false"
+            android:theme="@style/Theme.Sillon">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".widget.SillonWidget"
             android:exported="false">

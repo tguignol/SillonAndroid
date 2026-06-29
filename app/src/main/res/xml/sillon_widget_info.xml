@@ -7,6 +7,7 @@
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0"
+    android:configure="ch.kohlnet.sillon.widget.SillonWidgetConfig"
     android:initialLayout="@layout/widget_now_playing"
     android:previewLayout="@layout/widget_now_playing"
     android:description="@string/app_name" />
