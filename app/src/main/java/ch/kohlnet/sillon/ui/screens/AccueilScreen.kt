@@ -473,7 +473,7 @@ private fun SortDirectionButtons(ascending: Boolean, onSet: (Boolean) -> Unit) {
             Icons.Filled.SwapVert,
             contentDescription = if (ascending) "Tri A→Z — taper pour Z→A" else "Tri Z→A — taper pour A→Z",
             tint = Sillon.colors.accentCuivre,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(26.dp),
         )
     }
 }
