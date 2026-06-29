@@ -124,6 +124,7 @@ fun AccueilScreen() {
     var showArtists by remember { mutableStateOf(false) }
     var seeAll by remember { mutableStateOf<SeeAll?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
+    val seeAllGridState = rememberLazyGridState() // hissé → la grille « Voir tout » garde sa position au retour
 
     // Artistes (pour l'accès rapide « Artistes »), même calcul que la Bibliothèque.
     val artists = remember(albums, servers) {
@@ -154,7 +155,7 @@ fun AccueilScreen() {
     val sa = seeAll
     if (sa != null) {
         when (sa) {
-            is SeeAll.Albums -> SeeAllAlbumsScreen(sa.title, sa.items, onBack = { seeAll = null }) { selected = it }
+            is SeeAll.Albums -> SeeAllAlbumsScreen(sa.title, sa.items, seeAllGridState, onBack = { seeAll = null }) { selected = it }
             is SeeAll.Tracks -> SeeAllTracksScreen(sa.title, sa.items, onBack = { seeAll = null })
         }
         return
@@ -529,6 +530,10 @@ fun FavorisScreen() {
     var selected by remember { mutableStateOf<Album?>(null) }
     var selectedPlaylist by remember { mutableStateOf<String?>(null) }
     var selectedServerPlaylist by remember { mutableStateOf<ServerPlaylist?>(null) }
+    // États de défilement HISSÉS (avant les early-return) → la position survit à l'ouverture d'un détail
+    // et l'utilisateur revient là où il avait cliqué.
+    val albumsGridState = rememberLazyGridState()
+    val tracksListState = rememberLazyListState()
     val sel = selected
     if (sel != null) {
         AlbumDetailScreen(sel, onBack = { selected = null })
@@ -587,11 +592,10 @@ fun FavorisScreen() {
                 if (favorites.isEmpty()) {
                     EmptyHint(str(S.AUCUN_FAVORI))
                 } else {
-                    val gridState = rememberLazyGridState()
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(CARD),
-                        state = gridState,
-                        modifier = Modifier.fillMaxSize().lazyGridScrollbar(gridState, Sillon.colors.texteSourdine),
+                        state = albumsGridState,
+                        modifier = Modifier.fillMaxSize().lazyGridScrollbar(albumsGridState, Sillon.colors.texteSourdine),
                         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
                         verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
                         contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
@@ -605,10 +609,9 @@ fun FavorisScreen() {
                 if (favoriteTracks.isEmpty()) {
                     EmptyHint(str(S.AUCUN_FAVORI))
                 } else {
-                    val listState = rememberLazyListState()
                     LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize().lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
+                        state = tracksListState,
+                        modifier = Modifier.fillMaxSize().lazyColumnScrollbar(tracksListState, Sillon.colors.texteSourdine),
                         contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
                     ) {
                         lazyRowItemsIndexed(favoriteTracks, key = { _, t -> t.serverId + "/" + t.id }) { i, track ->
@@ -1024,8 +1027,7 @@ private fun SeeAllHeader(title: String, onBack: () -> Unit) {
 
 /** « Voir tout » → grille d'albums (même design que la bibliothèque), dans l'ordre de la section. */
 @Composable
-private fun SeeAllAlbumsScreen(title: String, albums: List<Album>, onBack: () -> Unit, onClick: (Album) -> Unit) {
-    val gridState = rememberLazyGridState()
+private fun SeeAllAlbumsScreen(title: String, albums: List<Album>, gridState: LazyGridState, onBack: () -> Unit, onClick: (Album) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
