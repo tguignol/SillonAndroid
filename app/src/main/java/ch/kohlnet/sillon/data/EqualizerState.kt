@@ -48,6 +48,11 @@ object EqualizerState {
     const val MIN_BW = 0.05f      // largeur en OCTAVES
     const val MAX_BW = 5.0f
     const val DEFAULT_BW = 1.0f
+    // Préampli (gain de SORTIE en dB) : remonte le volume GLOBAL au-delà du plafond système. Le
+    // processeur applique un limiteur DOUX → plus fort sans écrêtage dur. Défaut +6 dB (« plus trop faible »).
+    const val MIN_PREAMP = 0f
+    const val MAX_PREAMP = 12f
+    const val DEFAULT_PREAMP = 6f
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val KEY_GAINS = stringPreferencesKey("eqGains")
@@ -57,6 +62,7 @@ object EqualizerState {
     private val KEY_BWS = stringPreferencesKey("eqBws")
     private val KEY_MODE = stringPreferencesKey("eqMode")
     private val KEY_PRESETS = stringPreferencesKey("eqPresets")
+    private val KEY_PREAMP = stringPreferencesKey("eqPreamp")
     private val json = Json { ignoreUnknownKeys = true }
     private var appContext: Context? = null
 
@@ -81,6 +87,10 @@ object EqualizerState {
 
     private val _mode = MutableStateFlow(EQMode.NORMAL)
     val mode: StateFlow<EQMode> = _mode.asStateFlow()
+
+    /** Préampli (dB) lu EN DIRECT par le processeur à chaque buffer (indépendant de l'EQ on/off). */
+    private val _preampDb = MutableStateFlow(DEFAULT_PREAMP)
+    val preampDb: StateFlow<Float> = _preampDb.asStateFlow()
 
     /** Incrémenté à chaque changement ; lu (sans verrou) par le processeur audio pour recalculer. */
     @Volatile
@@ -110,6 +120,7 @@ object EqualizerState {
             _enabled.value = prefs[KEY_ENABLED] == "1"
             _mode.value = prefs[KEY_MODE]?.let { runCatching { EQMode.valueOf(it) }.getOrNull() } ?: EQMode.NORMAL
             _presets.value = prefs[KEY_PRESETS]?.let { runCatching { json.decodeFromString<List<EqPreset>>(it) }.getOrNull() } ?: emptyList()
+            _preampDb.value = prefs[KEY_PREAMP]?.toFloatOrNull()?.coerceIn(MIN_PREAMP, MAX_PREAMP) ?: DEFAULT_PREAMP
             generation++
         }
     }
@@ -179,6 +190,12 @@ object EqualizerState {
         persist()
     }
 
+    /** Règle le préampli (gain de sortie, dB). Pas de `generation++` : le processeur lit la valeur en direct. */
+    fun setPreamp(db: Float) {
+        _preampDb.value = db.coerceIn(MIN_PREAMP, MAX_PREAMP)
+        persist()
+    }
+
     /** Change de mode. En NORMAL on ré-impose les fréquences log par défaut + largeur 1 oct (gains gardés), comme l'iOS. */
     fun setMode(m: EQMode) {
         if (m == _mode.value) return
@@ -225,6 +242,7 @@ object EqualizerState {
                 it[KEY_ENABLED] = en
                 it[KEY_BANDS] = n
                 it[KEY_MODE] = modeStr
+                it[KEY_PREAMP] = _preampDb.value.toString()
             }
         }
     }

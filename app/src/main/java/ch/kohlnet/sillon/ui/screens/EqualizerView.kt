@@ -102,6 +102,26 @@ fun EqualizerPanel() {
             }
         }
 
+        // Préampli (volume GLOBAL) : monte le niveau de sortie au-delà du plafond système. Actif même
+        // quand l'EQ est désactivé ; limiteur doux côté processeur. 0 dB = aucun boost.
+        val preamp by EqualizerState.preampDb.collectAsState()
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Préampli", style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
+            Spacer(Modifier.width(Sillon.spacing.m))
+            Slider(
+                value = preamp,
+                onValueChange = { EqualizerState.setPreamp(it) },
+                valueRange = EqualizerState.MIN_PREAMP..EqualizerState.MAX_PREAMP,
+                colors = SliderDefaults.colors(
+                    thumbColor = Sillon.colors.accentCuivre,
+                    activeTrackColor = Sillon.colors.accentCuivre,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(Sillon.spacing.s))
+            Text("+${preamp.roundToInt()} dB", style = Sillon.type.technique, color = Sillon.colors.texteIvoire)
+        }
+
         // Sélecteur de mode (la « ligne de boutons » pour passer de l'un à l'autre).
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             val modes = listOf(EQMode.NORMAL to "Normal", EQMode.PARAMETRIC to "Paramétrique", EQMode.GRAPHIC to "Graphique")

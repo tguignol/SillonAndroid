@@ -11,6 +11,7 @@ import kotlin.math.ln
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sinh
+import kotlin.math.tanh
 
 /**
  * Égaliseur custom (chaîne de filtres peaking biquad) inséré dans la sortie ExoPlayer, pour reproduire
@@ -65,7 +66,13 @@ class EqAudioProcessor : BaseAudioProcessor() {
         val inBytes = ByteArray(inputBuffer.remaining())
         inputBuffer.get(inBytes)
         val output = replaceOutputBuffer(inBytes.size)
-        if (bypass || channels <= 0) {
+
+        // Préampli : gain de SORTIE (dB → facteur linéaire), lu en direct. Appliqué que l'EQ soit on/off.
+        val preampDb = EqualizerState.preampDb.value
+        val gain = if (preampDb > 0f) Math.pow(10.0, preampDb / 20.0) else 1.0
+
+        // Aucun traitement (EQ désactivé ET pas de préampli) → copie directe (rapide).
+        if ((bypass || channels <= 0) && gain == 1.0) {
             output.put(inBytes)
             output.flip()
             return
@@ -74,11 +81,26 @@ class EqAudioProcessor : BaseAudioProcessor() {
         var ch = 0
         while (src.hasRemaining()) {
             var y = src.short.toDouble()
-            for (bq in biquads[ch]) y = bq.process(y)
+            if (!bypass && channels > 0) for (bq in biquads[ch]) y = bq.process(y)
+            if (gain != 1.0) {
+                // Gain puis limiteur DOUX : transparent jusqu'à ~−2.5 dBFS, saturation douce au-delà
+                // (au lieu d'un écrêtage dur) → plus fort sans distorsion agressive.
+                y = softClip(y / 32768.0 * gain) * 32767.0
+            }
             output.putShort(y.coerceIn(-32768.0, 32767.0).roundToInt().toShort())
-            ch = (ch + 1) % channels
+            if (channels > 0) ch = (ch + 1) % channels
         }
         output.flip()
+    }
+
+    /** Limiteur doux : linéaire jusqu'au seuil `t`, puis saturation tanh, borné à ±1. */
+    private fun softClip(v: Double): Double {
+        val t = 0.85
+        return when {
+            v > t -> t + (1.0 - t) * tanh((v - t) / (1.0 - t))
+            v < -t -> -(t + (1.0 - t) * tanh((-v - t) / (1.0 - t)))
+            else -> v
+        }
     }
 
     /** Lit le PCM (sans le consommer) pour alimenter l'analyseur FFT du visualiseur de spectre. */
