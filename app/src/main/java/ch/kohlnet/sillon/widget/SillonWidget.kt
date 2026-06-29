@@ -85,8 +85,9 @@ class SillonWidget : AppWidgetProvider() {
 
             for (id in ids) {
                 val translucent = WidgetPrefs.isTranslucent(ctx, id)
-                // Mode « cover » = texte clair sur la pochette ; sinon (translucide / repli) on suit le thème.
-                val coverMode = !translucent && blurred != null
+                // Mode « cover » (non translucide) : on affiche TOUJOURS un fond image (pochette réelle, ou
+                // dégradé cuivre par défaut quand rien ne joue) → jamais une boîte vide ; texte clair.
+                val coverMode = !translucent
                 val onDark = coverMode || dark
                 val primary = if (onDark) 0xFFFFFFFF.toInt() else 0xFF15140F.toInt()
                 val secondary = if (onDark) 0xCCFFFFFF.toInt() else 0x99000000.toInt()
@@ -95,7 +96,7 @@ class SillonWidget : AppWidgetProvider() {
                 val views = RemoteViews(ctx.packageName, R.layout.widget_now_playing)
 
                 views.setTextViewText(R.id.widget_title, track?.title ?: ctx.getString(R.string.app_name))
-                views.setTextViewText(R.id.widget_artist, track?.artist ?: "")
+                views.setTextViewText(R.id.widget_artist, track?.artist?.takeIf { it.isNotBlank() } ?: "Rien en lecture")
                 views.setTextViewText(R.id.widget_output_name, outputLabel(out))
                 views.setTextViewText(R.id.widget_position, fmt(pos))
                 views.setTextViewText(R.id.widget_duration, fmt(dur))
@@ -117,15 +118,14 @@ class SillonWidget : AppWidgetProvider() {
                     views.setInt(R.id.widget_root, "setBackgroundResource",
                         if (dark) R.drawable.widget_bg_translucent else R.drawable.widget_bg_translucent_light)
                 } else {
-                    views.setInt(R.id.widget_root, "setBackgroundResource",
-                        if (dark) R.drawable.widget_bg else R.drawable.widget_bg_light)
+                    // Pochette réelle floutée, ou dégradé cuivre par défaut quand rien ne joue → jamais vide.
+                    views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg)
+                    views.setViewVisibility(R.id.widget_cover_bg, View.VISIBLE)
+                    views.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
                     if (blurred != null) {
-                        views.setViewVisibility(R.id.widget_cover_bg, View.VISIBLE)
-                        views.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
                         views.setImageViewBitmap(R.id.widget_cover_bg, blurred)
                     } else {
-                        views.setViewVisibility(R.id.widget_cover_bg, View.GONE)
-                        views.setViewVisibility(R.id.widget_scrim, View.GONE)
+                        views.setImageViewResource(R.id.widget_cover_bg, R.drawable.widget_default_cover)
                     }
                 }
 
