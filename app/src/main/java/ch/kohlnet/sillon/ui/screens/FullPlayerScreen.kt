@@ -64,11 +64,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
@@ -257,6 +259,29 @@ private fun CoverThumb(t: Track, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Bouton de transport à zone tactile SERRÉE (≈ icône + petit anneau), au lieu du minimum 48 dp d'IconButton.
+ * Évite les « avance/recule » accidentels quand on tape un peu à côté de l'icône.
+ */
+@Composable
+private fun TransportButton(
+    icon: ImageVector,
+    contentDescription: String,
+    tint: Color,
+    iconSize: Dp,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(iconSize + 8.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(iconSize))
+    }
+}
+
 @Composable
 private fun ColumnScope.Controls(
     t: Track,
@@ -341,10 +366,9 @@ private fun ColumnScope.Controls(
     val shuffle by PlayerController.shuffle.collectAsState()
     val repeatMode by PlayerController.repeatMode.collectAsState()
 
-    // En `tight` (colonne ~moitié de l'écran interne du Fold), on COMPACTE les boutons (40 dp) et on
-    // répartit en SpaceEvenly, sinon les 7 débordaient et « répéter » (à droite) était coupé. Écran
-    // externe (1 colonne) : inchangé (boutons par défaut, espacement centré).
-    val sideBtn = if (tight) Modifier.size(40.dp) else Modifier
+    // Boutons LATÉRAUX à zone tactile SERRÉE (TransportButton ≈ icône + 4 dp) : un tap un peu À CÔTÉ ne
+    // déclenche plus « avance/recule » (IconButton imposait 48 dp, donc un large anneau autour de l'icône).
+    // En `tight` (colonne ~moitié de l'écran interne du Fold) on répartit en SpaceEvenly.
     // Transport : aléatoire, précédent, −10 s, lecture, +10 s, suivant, répéter.
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -352,15 +376,9 @@ private fun ColumnScope.Controls(
             else Arrangement.spacedBy(Sillon.spacing.s, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { PlayerController.toggleShuffle() }, modifier = sideBtn) {
-            Icon(Icons.Filled.Shuffle, "Aléatoire", tint = tintIf(shuffle), modifier = Modifier.size(22.dp))
-        }
-        IconButton(onClick = { PlayerController.previous() }, modifier = sideBtn) {
-            Icon(Icons.Filled.SkipPrevious, "Précédent", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(30.dp))
-        }
-        IconButton(onClick = { PlayerController.skipBackward() }, modifier = sideBtn) {
-            Icon(Icons.Filled.Replay10, "−10 s", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(28.dp))
-        }
+        TransportButton(Icons.Filled.Shuffle, "Aléatoire", tintIf(shuffle), 22.dp) { PlayerController.toggleShuffle() }
+        TransportButton(Icons.Filled.SkipPrevious, "Précédent", Sillon.colors.texteIvoire, 30.dp) { PlayerController.previous() }
+        TransportButton(Icons.Filled.Replay10, "−10 s", Sillon.colors.texteIvoire, 28.dp) { PlayerController.skipBackward() }
         IconButton(
             onClick = { PlayerController.togglePlayPause() },
             modifier = if (tight) Modifier.size(48.dp) else Modifier,
@@ -372,20 +390,12 @@ private fun ColumnScope.Controls(
                 modifier = Modifier.size(if (tight) 44.dp else 54.dp),
             )
         }
-        IconButton(onClick = { PlayerController.skipForward() }, modifier = sideBtn) {
-            Icon(Icons.Filled.Forward10, "+10 s", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(28.dp))
-        }
-        IconButton(onClick = { PlayerController.next() }, modifier = sideBtn) {
-            Icon(Icons.Filled.SkipNext, "Suivant", tint = Sillon.colors.texteIvoire, modifier = Modifier.size(30.dp))
-        }
-        IconButton(onClick = { PlayerController.cycleRepeat() }, modifier = sideBtn) {
-            Icon(
-                if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
-                contentDescription = "Répéter",
-                tint = tintIf(repeatMode != Player.REPEAT_MODE_OFF),
-                modifier = Modifier.size(22.dp),
-            )
-        }
+        TransportButton(Icons.Filled.Forward10, "+10 s", Sillon.colors.texteIvoire, 28.dp) { PlayerController.skipForward() }
+        TransportButton(Icons.Filled.SkipNext, "Suivant", Sillon.colors.texteIvoire, 30.dp) { PlayerController.next() }
+        TransportButton(
+            if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+            "Répéter", tintIf(repeatMode != Player.REPEAT_MODE_OFF), 22.dp,
+        ) { PlayerController.cycleRepeat() }
     }
 
     Spacer(Modifier.height(Sillon.spacing.xxl))
