@@ -304,6 +304,9 @@ private fun ColumnScope.Controls(
         style = Sillon.type.display,
         color = Sillon.colors.texteIvoire,
         textAlign = TextAlign.Center,
+        // Hauteur FIGÉE à 2 lignes (min = max) : le bloc haut ne se contracte/dilate plus selon la
+        // longueur du titre au changement de morceau → le reste ne décale plus.
+        minLines = 2,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth(),
