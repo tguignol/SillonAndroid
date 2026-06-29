@@ -13,6 +13,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import ch.kohlnet.sillon.data.PlayHistory
 import ch.kohlnet.sillon.data.Track
+import ch.kohlnet.sillon.widget.SillonWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -72,15 +73,20 @@ object PlayerController {
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    /** Contexte applicatif (pour rafraîchir le widget « Lecture en cours »). */
+    private var appContext: Context? = null
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
+            appContext?.let { SillonWidget.update(it) }
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val t = _queue.value.getOrNull(controller?.currentMediaItemIndex ?: -1)
             _current.value = t
             if (t != null) PlayHistory.record(t) // historique d'écoute (accueil : plus écoutés / récemment écoutés)
+            appContext?.let { SillonWidget.update(it) }
         }
 
         override fun onShuffleModeEnabledChanged(enabled: Boolean) {
@@ -96,6 +102,7 @@ object PlayerController {
     fun init(context: Context) {
         if (controller != null) return
         val ctx = context.applicationContext
+        appContext = ctx
         audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         refreshVolume()
         val token = SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))
