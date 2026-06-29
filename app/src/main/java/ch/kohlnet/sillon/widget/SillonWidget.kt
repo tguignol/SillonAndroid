@@ -188,7 +188,8 @@ class SillonWidget : AppWidgetProvider() {
 
         private fun blur(src: Bitmap?): Bitmap? {
             src ?: return null
-            val small = Bitmap.createScaledBitmap(src, (src.width / 14).coerceAtLeast(1), (src.height / 14).coerceAtLeast(1), true)
+            // Flou LÉGER (réduction ×5 puis agrandissement) : la pochette reste reconnaissable, façon Sortie média.
+            val small = Bitmap.createScaledBitmap(src, (src.width / 5).coerceAtLeast(1), (src.height / 5).coerceAtLeast(1), true)
             return Bitmap.createScaledBitmap(small, src.width.coerceAtMost(600), src.height.coerceAtMost(600), true)
         }
     }
