@@ -145,6 +145,12 @@ object MusicRepository {
     private val _serverPlaylists = MutableStateFlow<List<ServerPlaylist>>(emptyList())
     val serverPlaylists: StateFlow<List<ServerPlaylist>> = _serverPlaylists.asStateFlow()
 
+    /** TOUS les titres (onglet « Titres » de la Bibliothèque), chargés à la demande. */
+    private val _allTracks = MutableStateFlow<List<Track>>(emptyList())
+    val allTracks: StateFlow<List<Track>> = _allTracks.asStateFlow()
+    private val _loadingTracks = MutableStateFlow(false)
+    val loadingTracks: StateFlow<Boolean> = _loadingTracks.asStateFlow()
+
     private val _favorites = MutableStateFlow<List<Album>>(emptyList())
     val favorites: StateFlow<List<Album>> = _favorites.asStateFlow()
 
@@ -445,6 +451,19 @@ object MusicRepository {
     /** « Radio » à partir d'un titre (titres similaires) — routée vers le provider du titre. */
     suspend fun radio(seed: Track): List<Track> =
         providers[seed.serverId]?.let { runCatching { it.radio(seed.id) }.getOrDefault(emptyList()) } ?: emptyList()
+
+    /** Charge TOUS les titres des serveurs actifs (paginé, en parallèle). Mémoïsé sauf `force`. */
+    suspend fun loadAllTracks(force: Boolean = false) {
+        if (!force && _allTracks.value.isNotEmpty()) return
+        _loadingTracks.value = true
+        try {
+            val active = _servers.value.filter { it.active }.mapNotNull { providers[it.id] }
+            val all = coroutineScope { active.map { p -> async { runCatching { p.allTracks() }.getOrNull() } }.awaitAll() }
+            _allTracks.value = all.filterNotNull().flatten()
+        } finally {
+            _loadingTracks.value = false
+        }
+    }
 
     /** Réécrit le cache local des métadonnées (albums par serveur) sur disque, en tâche de fond. */
     private fun persistLibraryCache() {

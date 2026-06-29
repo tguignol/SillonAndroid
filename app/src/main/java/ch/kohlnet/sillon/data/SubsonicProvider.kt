@@ -39,7 +39,7 @@ data class SubResponse(
 @Serializable data class SubPlaylistDetail(val id: String = "", val name: String = "", val entry: List<SubSong> = emptyList())
 
 @Serializable data class SubAlbumList(val album: List<SubAlbumItem> = emptyList())
-@Serializable data class SubSearchResult(val album: List<SubAlbumItem> = emptyList(), val artist: List<SubArtistItem> = emptyList())
+@Serializable data class SubSearchResult(val album: List<SubAlbumItem> = emptyList(), val artist: List<SubArtistItem> = emptyList(), val song: List<SubSong> = emptyList())
 @Serializable data class SubAlbumItem(val id: String, val name: String = "", val artist: String = "", val coverArt: String? = null, val year: Int? = null, val genre: String? = null)
 @Serializable data class SubArtistItem(val id: String, val name: String = "")
 @Serializable data class SubArtist(val id: String = "", val name: String = "", val album: List<SubAlbumItem> = emptyList())
@@ -189,6 +189,24 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
 
     override suspend fun radio(seedTrackId: String): List<Track> =
         api("getSimilarSongs2", mapOf("id" to seedTrackId, "count" to "50")).similarSongs2?.song.orEmpty().map(::toTrack)
+
+    override suspend fun allTracks(): List<Track> {
+        // search3 avec une requête vide = « tout » sur Navidrome (paginé). Si non supporté → vide.
+        val out = mutableListOf<Track>()
+        var offset = 0
+        val page = 500
+        while (true) {
+            val songs = api(
+                "search3",
+                mapOf("query" to "", "songCount" to page.toString(), "songOffset" to offset.toString(), "albumCount" to "0", "artistCount" to "0"),
+            ).searchResult3?.song.orEmpty()
+            if (songs.isEmpty()) break
+            out += songs.map(::toTrack)
+            offset += page
+            if (out.size >= 5000) break // garde-fou
+        }
+        return out
+    }
 
     override suspend fun lyrics(trackId: String): TrackLyrics? {
         val sl = runCatching { api("getLyricsBySongId", mapOf("id" to trackId)).lyricsList?.structuredLyrics?.firstOrNull() }

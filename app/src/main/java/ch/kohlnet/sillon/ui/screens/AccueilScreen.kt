@@ -88,6 +88,7 @@ import ch.kohlnet.sillon.player.PlayerController
 import ch.kohlnet.sillon.ui.components.AzScrollIndex
 import ch.kohlnet.sillon.ui.components.ServerMark
 import ch.kohlnet.sillon.ui.components.SourceBadge
+import ch.kohlnet.sillon.ui.components.TrackMenuButton
 import ch.kohlnet.sillon.ui.components.sillonSegmentedColors
 import ch.kohlnet.sillon.ui.components.azSortKey
 import ch.kohlnet.sillon.ui.components.azTargetIndex
@@ -311,7 +312,7 @@ private fun PlaylistCarousel(playlists: List<ch.kohlnet.sillon.data.Playlist>, o
     }
 }
 
-private enum class LibraryMode { RECENTS, ALBUMS, ARTISTS, PLAYLISTS }
+private enum class LibraryMode { RECENTS, ALBUMS, ARTISTS, TITRES, PLAYLISTS }
 
 /** Entrée artiste : nom, serveurs d'origine, et un album représentatif (pour déduire le format). */
 private data class ArtistEntry(val name: String, val types: List<ServerType>, val sample: Album)
@@ -332,6 +333,7 @@ fun BibliothequeScreen() {
     val gridState = rememberLazyGridState()   // hissés → survivent à l'ouverture d'un détail
     val recentsGridState = rememberLazyGridState()
     val listState = rememberLazyListState()
+    val titresListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
     selectedAlbum?.let {
@@ -391,6 +393,7 @@ fun BibliothequeScreen() {
                 LibraryMode.RECENTS to str(S.RECENTS),
                 LibraryMode.ALBUMS to str(S.ALBUMS),
                 LibraryMode.ARTISTS to str(S.ARTISTES),
+                LibraryMode.TITRES to str(S.TITRES_LIB),
                 LibraryMode.PLAYLISTS to str(S.PLAYLISTS),
             )
             libModes.forEachIndexed { i, (m, label) ->
@@ -405,9 +408,11 @@ fun BibliothequeScreen() {
         }
         Spacer(Modifier.height(Sillon.spacing.m))
 
-        // Les playlists sont LOCALES → indépendantes des albums serveur (affichées même biblio vide).
+        // Playlists et Titres sont chargés indépendamment des albums serveur (affichés même biblio vide).
         if (mode == LibraryMode.PLAYLISTS) {
             PlaylistsListScreen(onOpenLocal = { selectedPlaylist = it }, onOpenServer = { selectedServerPlaylist = it })
+        } else if (mode == LibraryMode.TITRES) {
+            IndexedTracksList(titresListState, scope)
         } else if (albums.isEmpty()) {
             if (loading) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
         } else when (mode) {
@@ -415,6 +420,7 @@ fun BibliothequeScreen() {
             LibraryMode.RECENTS -> AlbumGrid(albums, Modifier.fillMaxSize(), recentsGridState) { selectedAlbum = it }
             LibraryMode.ALBUMS -> IndexedAlbumGrid(sortedAlbums, gridState, scope) { selectedAlbum = it }
             LibraryMode.ARTISTS -> IndexedArtistList(artists, listState, scope) { selectedArtist = it }
+            LibraryMode.TITRES -> {}
             LibraryMode.PLAYLISTS -> {}
         }
     }
@@ -500,6 +506,67 @@ private fun IndexedArtistList(
         AzScrollIndex(present = present, current = current, onLetter = { c ->
             scope.launch { listState.scrollToItem(azTargetIndex(letters, c)) }
         })
+    }
+}
+
+/** Onglet « Titres » : TOUS les titres de la bibliothèque, A-Z, index latéral. Tap = lecture depuis ce titre. */
+@Composable
+private fun IndexedTracksList(listState: LazyListState, scope: CoroutineScope) {
+    val tracks by MusicRepository.allTracks.collectAsState()
+    val loadingTracks by MusicRepository.loadingTracks.collectAsState()
+    LaunchedEffect(Unit) { MusicRepository.loadAllTracks() }
+    val sorted = remember(tracks) { tracks.sortedBy { azSortKey(it.title) } }
+
+    if (sorted.isEmpty()) {
+        if (loadingTracks) LoadingHint() else EmptyHint(str(S.BIBLIOTHEQUE_VIDE))
+        return
+    }
+    val letters = remember(sorted) { sorted.map { indexLetter(it.title) } }
+    val present = remember(letters) { letters.toSet() }
+    val current by remember(letters) {
+        derivedStateOf { letters.getOrNull(listState.firstVisibleItemIndex) ?: 'A' }
+    }
+    Row(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
+        ) {
+            lazyRowItemsIndexed(sorted, key = { _, t -> t.serverId + "/" + t.id }) { i, track ->
+                TrackListRow(track) { PlayerController.play(sorted, i) }
+            }
+        }
+        AzScrollIndex(present = present, current = current, onLetter = { c ->
+            scope.launch { listState.scrollToItem(azTargetIndex(letters, c)) }
+        })
+    }
+}
+
+/** Ligne de l'onglet « Titres » : pochette + titre/artiste + icône de provenance + ⋮ + durée. */
+@Composable
+private fun TrackListRow(track: Track, onClick: () -> Unit) {
+    val servers by MusicRepository.servers.collectAsState()
+    val type = servers.firstOrNull { it.id == track.serverId }?.type
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Sillon.spacing.s, horizontal = Sillon.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+    ) {
+        AsyncImage(
+            model = track.coverUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(Sillon.spacing.xs)).background(placeholderBrush(track.title.ifBlank { track.id })),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(track.title, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (track.artist.isNotBlank()) {
+                Text(track.artist, style = Sillon.type.corps.copy(fontSize = 13.sp), color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (type != null) ServerMark(type, Modifier.size(14.dp))
+        TrackMenuButton(track)
+        track.durationMs?.let { Text(seeAllDuration(it), style = Sillon.type.technique, color = Sillon.colors.texteSourdine) }
     }
 }
 

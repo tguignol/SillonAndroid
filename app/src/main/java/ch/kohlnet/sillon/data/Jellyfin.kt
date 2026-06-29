@@ -229,6 +229,30 @@ class JellyfinClient(baseUrl: String) {
             parameter("Fields", "Artists,MediaStreams,Path,Container")
         }.body<TracksResponse>().items
 
+    /** TOUS les titres (paginé, ordre alphabétique), borné par garde-fou. */
+    suspend fun allTracks(token: String, userId: String): List<JellyfinTrack> {
+        val pageSize = 500
+        var start = 0
+        val out = mutableListOf<JellyfinTrack>()
+        while (true) {
+            val resp = http.get("$base/Items") {
+                header("X-Emby-Authorization", authHeader(token))
+                parameter("userId", userId)
+                parameter("IncludeItemTypes", "Audio")
+                parameter("Recursive", "true")
+                parameter("SortBy", "SortName")
+                parameter("StartIndex", start.toString())
+                parameter("Limit", pageSize.toString())
+                parameter("Fields", "Artists,MediaStreams,Path,Container")
+            }.body<TracksResponse>()
+            out += resp.items
+            if (resp.items.size < pageSize) break
+            start += pageSize
+            if (out.size >= 5000) break // garde-fou mémoire
+        }
+        return out
+    }
+
     /** URL chargeable de la pochette (le jeton sert d'`api_key`). */
     fun coverUrl(itemId: String, token: String, maxWidth: Int = 400): String =
         "$base/Items/$itemId/Images/Primary?maxWidth=$maxWidth&api_key=$token"
