@@ -70,7 +70,8 @@ class SillonWidget : AppWidgetProvider() {
         private val TRANSPORT_ACTIONS = setOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV)
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-        private val coverCache = LinkedHashMap<String, Bitmap>()
+        // Par URL : pochette NETTE (pour le carré en mode translucide) + FLOUTÉE (pour le fond plein).
+        private val coverCache = LinkedHashMap<String, Pair<Bitmap, Bitmap>>()
 
         fun update(context: Context) {
             val ctx = context.applicationContext
@@ -83,8 +84,10 @@ class SillonWidget : AppWidgetProvider() {
             val pos = PlayerController.positionMs.value
             val dur = PlayerController.durationMs.value.coerceAtLeast(1L)
             val url = track?.coverUrl
-            val blurred = url?.let { coverCache[it] }
-            if (url != null && blurred == null) scope.launch { loadAndCache(ctx, url) }
+            val pair = url?.let { coverCache[it] }
+            val sharp = pair?.first
+            val blurred = pair?.second
+            if (url != null && pair == null) scope.launch { loadAndCache(ctx, url) }
             val dark = isDark(ctx)
             val out = AudioOutputMonitor.output.value
 
@@ -118,12 +121,20 @@ class SillonWidget : AppWidgetProvider() {
                 }
 
                 if (translucent) {
+                    // Fond translucide (papier peint visible) + POCHETTE EN PETIT CARRÉ à gauche.
                     views.setViewVisibility(R.id.widget_cover_bg, View.GONE)
                     views.setViewVisibility(R.id.widget_scrim, View.GONE)
+                    views.setViewVisibility(R.id.widget_thumb, View.VISIBLE)
+                    if (sharp != null) {
+                        views.setImageViewBitmap(R.id.widget_thumb, sharp)
+                    } else {
+                        views.setImageViewResource(R.id.widget_thumb, R.drawable.widget_default_cover)
+                    }
                     views.setInt(R.id.widget_root, "setBackgroundResource",
                         if (dark) R.drawable.widget_bg_translucent else R.drawable.widget_bg_translucent_light)
                 } else {
-                    // Pochette réelle floutée, ou dégradé cuivre par défaut quand rien ne joue → jamais vide.
+                    // Mode pochette : pochette floutée en fond PLEIN (ou dégradé par défaut) ; pas de carré.
+                    views.setViewVisibility(R.id.widget_thumb, View.GONE)
                     views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg)
                     views.setViewVisibility(R.id.widget_cover_bg, View.VISIBLE)
                     views.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
@@ -170,8 +181,11 @@ class SillonWidget : AppWidgetProvider() {
         }
 
         private suspend fun loadAndCache(ctx: Context, url: String) {
-            val bmp = withContext(Dispatchers.IO) { runCatching { blur(loadBitmap(url)) }.getOrNull() } ?: return
-            coverCache[url] = bmp
+            val pair = withContext(Dispatchers.IO) {
+                val src = runCatching { loadBitmap(url) }.getOrNull() ?: return@withContext null
+                src to (blur(src) ?: src)
+            } ?: return
+            coverCache[url] = pair
             while (coverCache.size > 8) coverCache.remove(coverCache.keys.first())
             update(ctx)
         }
