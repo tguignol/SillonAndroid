@@ -57,6 +57,9 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
     override suspend fun playlistTracks(playlistId: String): List<Track> =
         client.playlistTracks(token, userId, playlistId).map(::toTrack)
 
+    override suspend fun radio(seedTrackId: String): List<Track> =
+        client.instantMix(token, userId, seedTrackId).map(::toTrack)
+
     /** Format affiché : conteneur prioritaire, repli sur l'extension du chemin, puis le codec.
      *  Pour les conteneurs MP4 (m4a…), on désambigüe ALAC vs AAC via le codec (comme l'iOS). */
     private fun fileFormat(container: String?, path: String?, codec: String?): String? {

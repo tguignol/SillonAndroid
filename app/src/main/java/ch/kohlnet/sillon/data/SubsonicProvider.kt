@@ -29,7 +29,10 @@ data class SubResponse(
     val lyricsList: SubLyricsList? = null,
     val playlists: SubPlaylists? = null,
     val playlist: SubPlaylistDetail? = null,
+    val similarSongs2: SubSimilarSongs2? = null,
 )
+
+@Serializable data class SubSimilarSongs2(val song: List<SubSong> = emptyList())
 
 @Serializable data class SubPlaylists(val playlist: List<SubPlaylistItem> = emptyList())
 @Serializable data class SubPlaylistItem(val id: String, val name: String = "", val songCount: Int = 0, val coverArt: String? = null)
@@ -183,6 +186,9 @@ class SubsonicProvider(override val config: ServerConfig) : ServerProvider {
 
     override suspend fun playlistTracks(playlistId: String): List<Track> =
         api("getPlaylist", mapOf("id" to playlistId)).playlist?.entry.orEmpty().map(::toTrack)
+
+    override suspend fun radio(seedTrackId: String): List<Track> =
+        api("getSimilarSongs2", mapOf("id" to seedTrackId, "count" to "50")).similarSongs2?.song.orEmpty().map(::toTrack)
 
     override suspend fun lyrics(trackId: String): TrackLyrics? {
         val sl = runCatching { api("getLyricsBySongId", mapOf("id" to trackId)).lyricsList?.structuredLyrics?.firstOrNull() }

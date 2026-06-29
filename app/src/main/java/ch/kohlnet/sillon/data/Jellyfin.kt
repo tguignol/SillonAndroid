@@ -220,6 +220,15 @@ class JellyfinClient(baseUrl: String) {
             parameter("Fields", "Artists,MediaStreams,Path,Container")
         }.body<TracksResponse>().items
 
+    /** « Radio » Jellyfin : Instant Mix à partir d'un titre (titres similaires). */
+    suspend fun instantMix(token: String, userId: String, itemId: String, limit: Int = 50): List<JellyfinTrack> =
+        http.get("$base/Items/$itemId/InstantMix") {
+            header("X-Emby-Authorization", authHeader(token))
+            parameter("userId", userId)
+            parameter("Limit", limit.toString())
+            parameter("Fields", "Artists,MediaStreams,Path,Container")
+        }.body<TracksResponse>().items
+
     /** URL chargeable de la pochette (le jeton sert d'`api_key`). */
     fun coverUrl(itemId: String, token: String, maxWidth: Int = 400): String =
         "$base/Items/$itemId/Images/Primary?maxWidth=$maxWidth&api_key=$token"

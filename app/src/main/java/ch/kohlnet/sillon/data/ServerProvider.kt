@@ -46,6 +46,8 @@ interface ServerProvider {
     suspend fun playlists(): List<ServerPlaylist> = emptyList()
     /** Morceaux d'une playlist serveur, dans l'ordre. Vide par défaut. */
     suspend fun playlistTracks(playlistId: String): List<Track> = emptyList()
+    /** « Radio » à partir d'un titre : titres similaires/instant-mix. Vide par défaut. */
+    suspend fun radio(seedTrackId: String): List<Track> = emptyList()
     fun close()
 }
 

@@ -442,6 +442,10 @@ object MusicRepository {
     suspend fun serverPlaylistTracks(playlist: ServerPlaylist): List<Track> =
         providers[playlist.serverId]?.let { runCatching { it.playlistTracks(playlist.id) }.getOrDefault(emptyList()) } ?: emptyList()
 
+    /** « Radio » à partir d'un titre (titres similaires) — routée vers le provider du titre. */
+    suspend fun radio(seed: Track): List<Track> =
+        providers[seed.serverId]?.let { runCatching { it.radio(seed.id) }.getOrDefault(emptyList()) } ?: emptyList()
+
     /** Réécrit le cache local des métadonnées (albums par serveur) sur disque, en tâche de fond. */
     private fun persistLibraryCache() {
         val ctx = appContext ?: return

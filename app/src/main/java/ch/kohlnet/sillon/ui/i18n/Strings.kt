@@ -24,7 +24,7 @@ enum class S {
     OUT_BLUETOOTH, OUT_WIRED, OUT_SPEAKER,
     PLAYLISTS, MES_PLAYLISTS, NOUVELLE_PLAYLIST, AJOUTER_PLAYLIST, AUCUNE_PLAYLIST, PLAYLIST_VIDE,
     RENOMMER, SUPPRIMER, CREER, LIRE, RETIRER_PLAYLIST, TITRE, TITRES,
-    MIXER_FAVORIS, RECENTS, TITRES_LIB,
+    MIXER_FAVORIS, RECENTS, TITRES_LIB, LANCER_RADIO,
 }
 
 /** Construit la table d'une clé : fr est obligatoire (base), les autres sont optionnelles. */
@@ -144,6 +144,7 @@ private val TABLE: Map<S, Map<String, String>> = mapOf(
     S.MIXER_FAVORIS to tr("Mixer les favoris", "Shuffle favorites", "Favoriten mischen", "Mescola preferiti", "Mezclar favoritos", "Misturar favoritos", "Përziej të preferuarat", "Izmešaj omiljene", "Maschadar ils preferids", "Favorileri karıştır"),
     S.RECENTS to tr("Récents", "Recent", "Neu", "Recenti", "Recientes", "Recentes", "Të rejat", "Nedavno", "Novs", "Yeni"),
     S.TITRES_LIB to tr("Titres", "Tracks", "Titel", "Brani", "Pistas", "Faixas", "Këngët", "Pesme", "Tocs", "Parçalar"),
+    S.LANCER_RADIO to tr("Lancer une radio", "Start radio", "Radio starten", "Avvia una radio", "Iniciar radio", "Iniciar rádio", "Nis një radio", "Pokreni radio", "Lantschar ina radio", "Radyo başlat"),
 )
 
 /** Résolution non-composable (pour usages hors composition). */

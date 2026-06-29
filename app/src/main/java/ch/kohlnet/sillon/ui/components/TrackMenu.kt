@@ -35,7 +35,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +64,7 @@ fun trackCountLabel(n: Int): String = "$n " + if (n > 1) str(S.TITRES) else str(
 fun TrackMenuButton(track: Track, modifier: Modifier = Modifier) {
     var menuOpen by remember { mutableStateOf(false) }
     var showAddToPlaylist by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     Box(modifier) {
         IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Filled.MoreVert, contentDescription = "Plus d'actions", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(20.dp))
@@ -70,6 +73,17 @@ fun TrackMenuButton(track: Track, modifier: Modifier = Modifier) {
             DropdownMenuItem(
                 text = { Text(str(S.AJOUTER_PLAYLIST), style = Sillon.type.corps) },
                 onClick = { showAddToPlaylist = true; menuOpen = false },
+            )
+            // Radio : titres similaires (Jellyfin Instant Mix / Subsonic getSimilarSongs).
+            DropdownMenuItem(
+                text = { Text(str(S.LANCER_RADIO), style = Sillon.type.corps) },
+                onClick = {
+                    menuOpen = false
+                    scope.launch {
+                        val tracks = MusicRepository.radio(track)
+                        PlayerController.play(if (tracks.isNotEmpty()) tracks else listOf(track), 0)
+                    }
+                },
             )
             // File d'attente désactivée → masquée, mais le code reste.
             if (QUEUE_UI_ENABLED) {
