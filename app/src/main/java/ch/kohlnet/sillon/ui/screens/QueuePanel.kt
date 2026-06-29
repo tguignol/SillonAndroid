@@ -3,6 +3,7 @@ package ch.kohlnet.sillon.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -98,9 +99,8 @@ fun QueuePanel(modifier: Modifier = Modifier, file: Boolean = false, onFileChang
         }
     }
 
-    // Mode du panneau piloté de l'extérieur par `file` (bouton du lecteur + chips ci-dessous) : ALBUM =
-    // titres de l'album ; QUEUE = la file de lecture réelle (mix manuel). Quand rien n'est mixé, la file
-    // ÉGALE l'album (c'est normal) — mais on respecte quand même le choix pour que la bascule soit visible.
+    // Mode piloté par `file` : ALBUM = titres de l'album affiché ; QUEUE = file d'attente MANUELLE (seuls
+    // les titres ajoutés par l'utilisateur, pouvant venir d'autres albums ; VIDE = on n'affiche rien).
     val mode = if (!QUEUE_UI_ENABLED || !file) QueueMode.ALBUM else QueueMode.QUEUE
     val items = if (mode == QueueMode.ALBUM) albumList else fileQueue
 
@@ -144,6 +144,17 @@ fun QueuePanel(modifier: Modifier = Modifier, file: Boolean = false, onFileChang
                 )
             }
         }
+        // File d'attente VIDE → on n'affiche aucune liste (juste une indication discrète).
+        if (mode == QueueMode.QUEUE && items.isEmpty()) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    "File d'attente vide",
+                    style = Sillon.type.corps,
+                    color = Sillon.colors.texteSourdine,
+                )
+            }
+            return@Column
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f).lazyColumnScrollbar(listState, Sillon.colors.texteSourdine),
@@ -156,9 +167,8 @@ fun QueuePanel(modifier: Modifier = Modifier, file: Boolean = false, onFileChang
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            // La liste affichée (album OU file) devient la file ACTIVE et démarre à ce titre.
-                            // resetFile = false → la file d'attente manuelle est préservée.
-                            PlayerController.play(items, index, resetFile = false)
+                            // La liste affichée (album OU file manuelle) devient la file ACTIVE, départ à ce titre.
+                            PlayerController.play(items, index)
                         }
                         .padding(vertical = Sillon.spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
