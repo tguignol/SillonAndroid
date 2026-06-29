@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
@@ -78,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.Album
 import ch.kohlnet.sillon.data.MusicRepository
+import ch.kohlnet.sillon.data.Playlists
 import ch.kohlnet.sillon.data.ServerPlaylist
 import ch.kohlnet.sillon.data.PlayHistory
 import ch.kohlnet.sillon.data.ServerType
@@ -119,8 +121,10 @@ fun AccueilScreen() {
     val stats by PlayHistory.stats.collectAsState()
     val servers by MusicRepository.servers.collectAsState()
     val favTrackKeys by MusicRepository.favoriteTrackKeys.collectAsState()
+    val playlists by Playlists.playlists.collectAsState()
     var selected by remember { mutableStateOf<Album?>(null) }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
+    var selectedPlaylist by remember { mutableStateOf<String?>(null) }
     var showArtists by remember { mutableStateOf(false) }
     var seeAll by remember { mutableStateOf<SeeAll?>(null) }
     val scrollState = rememberScrollState() // hissé → la position survit à l'aller-retour vers un album
@@ -150,6 +154,9 @@ fun AccueilScreen() {
     if (showArtists) {
         ArtistsListInline(artists, onBack = { showArtists = false }) { selectedArtist = it }
         return
+    }
+    selectedPlaylist?.let {
+        PlaylistDetailScreen(it, onBack = { selectedPlaylist = null }); return
     }
     // « Voir tout » d'une section → vue plein écran type bibliothèque (l'album ouvert prime, cf. plus haut).
     val sa = seeAll
@@ -266,6 +273,39 @@ fun AccueilScreen() {
             }
             Section(str(S.REDECOUVRIR)) {
                 AlbumCarousel(redecouvrir, onClick, onReshuffle = { redecouvrir = albums.shuffled().take(15) })
+            }
+            // Playlists en fin d'accueil (façon iOS HomeView).
+            if (playlists.isNotEmpty()) {
+                Section(str(S.PLAYLISTS)) {
+                    PlaylistCarousel(playlists.take(12)) { selectedPlaylist = it }
+                }
+            }
+        }
+    }
+}
+
+/** Carrousel de playlists (carte carrée avec icône) — section « Playlists » de l'accueil. */
+@Composable
+private fun PlaylistCarousel(playlists: List<ch.kohlnet.sillon.data.Playlist>, onOpen: (String) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = Sillon.spacing.xl),
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+    ) {
+        lazyRowItems(playlists, key = { it.id }) { pl ->
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+                modifier = Modifier.width(CARD).clickable { onOpen(pl.id) },
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(CARD)
+                        .clip(RoundedCornerShape(Sillon.spacing.cardCorner))
+                        .background(Sillon.colors.surfaceElevee),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.LibraryMusic, contentDescription = null, tint = Sillon.colors.accentCuivre, modifier = Modifier.size(44.dp))
+                }
+                Text(pl.name, style = Sillon.type.corps, color = Sillon.colors.texteIvoire, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

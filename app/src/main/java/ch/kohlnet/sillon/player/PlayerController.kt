@@ -17,6 +17,7 @@ import ch.kohlnet.sillon.widget.SillonWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -72,6 +73,11 @@ object PlayerController {
     /** `Player.REPEAT_MODE_OFF` / `_ALL` / `_ONE`. */
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
+    /** Minuterie de sommeil : instant (ms) d'arrêt prévu, ou null si inactive. */
+    private val _sleepTimerEndMs = MutableStateFlow<Long?>(null)
+    val sleepTimerEndMs: StateFlow<Long?> = _sleepTimerEndMs.asStateFlow()
+    private var sleepJob: Job? = null
 
     /** Contexte applicatif (pour rafraîchir le widget « Lecture en cours »). */
     private var appContext: Context? = null
@@ -292,6 +298,34 @@ object PlayerController {
         _queue.value = emptyList()
         _fileQueue.value = emptyList()
         _current.value = null
+    }
+
+    // MARK: - Minuterie de sommeil
+
+    /** Programme l'arrêt automatique (pause) dans `minutes` minutes. */
+    fun setSleepTimer(minutes: Int) = startSleepTimer(minutes * 60_000L)
+
+    /** Programme l'arrêt (pause) à la FIN du morceau courant. */
+    fun setSleepTimerEndOfTrack() {
+        val c = controller ?: return
+        startSleepTimer((c.duration - c.currentPosition).coerceAtLeast(0L))
+    }
+
+    private fun startSleepTimer(durationMs: Long) {
+        sleepJob?.cancel()
+        _sleepTimerEndMs.value = System.currentTimeMillis() + durationMs
+        sleepJob = scope.launch {
+            delay(durationMs)
+            controller?.pause()
+            _sleepTimerEndMs.value = null
+        }
+    }
+
+    /** Annule la minuterie de sommeil. */
+    fun cancelSleepTimer() {
+        sleepJob?.cancel()
+        sleepJob = null
+        _sleepTimerEndMs.value = null
     }
 
     fun toggleShuffle() {

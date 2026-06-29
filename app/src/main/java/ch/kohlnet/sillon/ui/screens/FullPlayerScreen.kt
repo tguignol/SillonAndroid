@@ -1,5 +1,6 @@
 package ch.kohlnet.sillon.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -32,7 +33,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.LibraryAddCheck
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Replay10
@@ -44,6 +47,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -59,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -131,6 +137,42 @@ fun FullPlayerScreen(onClose: () -> Unit) {
 
         IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart)) {
             Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Fermer", tint = Sillon.colors.texteIvoire)
+        }
+        SleepTimerButton(Modifier.align(Alignment.TopEnd))
+    }
+}
+
+/** Bouton minuterie de sommeil (en haut à droite du lecteur) : 15/30/45/60 min, fin du morceau, désactiver. */
+@Composable
+private fun SleepTimerButton(modifier: Modifier = Modifier) {
+    val end by PlayerController.sleepTimerEndMs.collectAsState()
+    val active = end != null
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        IconButton(onClick = { open = true }) {
+            Icon(
+                Icons.Filled.Bedtime,
+                contentDescription = "Minuterie de sommeil",
+                tint = if (active) Sillon.colors.accentCuivre else Sillon.colors.texteIvoire,
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            listOf(15, 30, 45, 60).forEach { m ->
+                DropdownMenuItem(
+                    text = { Text("$m min", style = Sillon.type.corps) },
+                    onClick = { PlayerController.setSleepTimer(m); open = false },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("Fin du morceau", style = Sillon.type.corps) },
+                onClick = { PlayerController.setSleepTimerEndOfTrack(); open = false },
+            )
+            if (active) {
+                DropdownMenuItem(
+                    text = { Text("Désactiver", style = Sillon.type.corps, color = Sillon.colors.accentCuivre) },
+                    onClick = { PlayerController.cancelSleepTimer(); open = false },
+                )
+            }
         }
     }
 }
@@ -429,13 +471,26 @@ private fun OutputIndicator() {
             icon = Icons.Filled.Speaker; label = str(S.OUT_SPEAKER)
         }
     }
+    val context = LocalContext.current
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(50))
+            // Tap → sélecteur de sortie audio du système (équivalent AirPlay : HP / Bluetooth / casque…).
+            .clickable {
+                runCatching {
+                    context.startActivity(
+                        Intent("android.settings.panel.action.MEDIA_OUTPUT").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            }
+            .padding(vertical = Sillon.spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = Sillon.colors.texteSourdine, modifier = Modifier.size(16.dp))
         Text(label, style = Sillon.type.technique, color = Sillon.colors.texteSourdine, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(Icons.Filled.SwapHoriz, contentDescription = "Changer la sortie", tint = Sillon.colors.texteSourdine, modifier = Modifier.size(15.dp))
     }
 }
 
