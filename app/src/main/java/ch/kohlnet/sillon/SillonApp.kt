@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -106,18 +109,29 @@ fun SillonApp() {
                     }
                     Column(Modifier.weight(1f)) {
                         Box(Modifier.weight(1f).fillMaxWidth()) {
-                            Row(Modifier.fillMaxSize()) {
-                                // « Toolbar » de la colonne de détail : bouton de repli (comme iPadOS).
+                            Column(Modifier.fillMaxSize()) {
+                                // « Toolbar » de repli (comme iPadOS). Le HAMBURGER définit la marge gauche :
+                                // start(s=8) + marge interne IconButton (12) + padding intrinsèque du glyphe (~3)
+                                // ≈ 23-24 dp = la marge horizontale `xl` (24 dp) des écrans → le glyphe ≡ tombe
+                                // pile sur la ligne où commence tout le contenu.
                                 Box(
                                     Modifier
                                         .statusBarsPadding()
-                                        .padding(top = Sillon.spacing.l, start = Sillon.spacing.s),
+                                        .padding(top = Sillon.spacing.s, start = Sillon.spacing.s),
                                 ) {
                                     IconButton(onClick = { sidebarVisible = !sidebarVisible }) {
                                         Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Sillon.colors.texteSourdine)
                                     }
                                 }
-                                Box(Modifier.weight(1f)) { ScreenContent(current) }
+                                // Contenu PLEINE LARGEUR sous le hamburger. On consomme l'inset status bar
+                                // (déjà appliqué par la toolbar) pour que le `statusBarsPadding()` des écrans
+                                // n'ajoute pas un second espace en haut.
+                                Box(
+                                    Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .consumeWindowInsets(WindowInsets.statusBars),
+                                ) { ScreenContent(current) }
                             }
                         }
                         NowPlayingBar(onOpen = { showPlayer = true }, bottomInset = true)

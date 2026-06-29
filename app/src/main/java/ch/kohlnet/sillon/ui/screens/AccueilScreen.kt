@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -387,7 +386,7 @@ fun BibliothequeScreen() {
                 IconButton(onClick = { browse = true }) {
                     Icon(Icons.Filled.Category, contentDescription = "Parcourir (genre / décennie)", tint = Sillon.colors.texteSourdine)
                 }
-                SortToggle(ascending) { ascending = !ascending }
+                SortDirectionButtons(ascending) { ascending = it }
             }
         }
         Spacer(Modifier.height(Sillon.spacing.m))
@@ -455,6 +454,35 @@ private fun SortToggle(ascending: Boolean, onToggle: () -> Unit) {
     }
 }
 
+/**
+ * Deux puces de direction du tri alphabétique : « A→Z » (ascendant) et « Z→A » (descendant).
+ * La direction active est en cuivre ; on choisit directement le sens (au lieu d'une bascule unique).
+ */
+@Composable
+private fun SortDirectionButtons(ascending: Boolean, onSet: (Boolean) -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SortChip("A→Z", selected = ascending) { onSet(true) }
+        SortChip("Z→A", selected = !ascending) { onSet(false) }
+    }
+}
+
+@Composable
+private fun SortChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        style = Sillon.type.technique,
+        color = if (selected) Sillon.colors.texteIvoire else Sillon.colors.texteSourdine,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) Sillon.colors.accentCuivre else Sillon.colors.surfaceElevee)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Sillon.spacing.s, vertical = Sillon.spacing.xs),
+    )
+}
+
 @Composable
 private fun IndexedAlbumGrid(
     albums: List<Album>,
@@ -471,8 +499,7 @@ private fun IndexedAlbumGrid(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(CARD),
             state = gridState,
-            // Vignettes décalées un peu vers la gauche (sans toucher l'en-tête, les segments ni l'index A-Z).
-            modifier = Modifier.weight(1f).offset(x = -Sillon.spacing.s),
+            modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
             verticalArrangement = Arrangement.spacedBy(Sillon.spacing.l),
             contentPadding = PaddingValues(bottom = Sillon.spacing.xxl),
