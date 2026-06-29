@@ -484,7 +484,10 @@ private fun OutputIndicator() {
     val label: String
     when (output.transport) {
         AudioOutputMonitor.Transport.BLUETOOTH -> {
-            icon = Icons.Filled.Bluetooth; label = output.name ?: str(S.OUT_BLUETOOTH)
+            icon = Icons.Filled.Bluetooth
+            // Nom de l'appareil + codec A2DP réel s'il a pu être lu (LDAC/aptX/AAC/SBC), ex. « Casque · LDAC ».
+            val base = output.name ?: str(S.OUT_BLUETOOTH)
+            label = listOfNotNull(base, output.codec).joinToString("  ·  ")
         }
         AudioOutputMonitor.Transport.WIRED -> {
             icon = Icons.Filled.Headphones; label = str(S.OUT_WIRED)

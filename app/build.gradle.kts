@@ -77,6 +77,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     // Fichiers locaux : accès au dossier choisi (Storage Access Framework)
     implementation("androidx.documentfile:documentfile:1.0.1")
+    // Accès aux API cachées (réflexion past le blocage non-SDK d'Android 9+) : codec Bluetooth A2DP.
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:4.3")
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

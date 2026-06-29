@@ -29,6 +29,12 @@ class MainActivity : ComponentActivity() {
     private val requestNotif =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    // BLUETOOTH_CONNECT : permet de lire le codec A2DP réel (LDAC/aptX…) du périphérique connecté.
+    private val requestBtConnect =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) AudioOutputMonitor.onBluetoothPermissionGranted()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MusicRepository.init(applicationContext)
@@ -41,6 +47,7 @@ class MainActivity : ComponentActivity() {
         PlayHistory.init(applicationContext)
         Playlists.init(applicationContext)
         requestNotificationPermission()
+        requestBluetoothPermission()
         enableEdgeToEdge()
         setContent {
             val appearance by AppSettings.appearance.collectAsState()
@@ -62,6 +69,15 @@ class MainActivity : ComponentActivity() {
             PackageManager.PERMISSION_GRANTED
         ) {
             requestNotif.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    /** Bluetooth : autorise la lecture du codec A2DP actif (best-effort). Sans elle → « Bluetooth » seul. */
+    private fun requestBluetoothPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestBtConnect.launch(Manifest.permission.BLUETOOTH_CONNECT)
         }
     }
 }

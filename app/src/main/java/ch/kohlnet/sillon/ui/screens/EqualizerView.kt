@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kohlnet.sillon.data.EQMode
 import ch.kohlnet.sillon.data.EqualizerState
+import ch.kohlnet.sillon.ui.components.ThinSlider
 import ch.kohlnet.sillon.ui.components.sillonSegmentedColors
 import ch.kohlnet.sillon.ui.i18n.S
 import ch.kohlnet.sillon.ui.i18n.str
@@ -108,14 +109,13 @@ fun EqualizerPanel() {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Préampli", style = Sillon.type.corps, color = Sillon.colors.texteSourdine)
             Spacer(Modifier.width(Sillon.spacing.m))
-            Slider(
+            ThinSlider(
                 value = preamp,
                 onValueChange = { EqualizerState.setPreamp(it) },
                 valueRange = EqualizerState.MIN_PREAMP..EqualizerState.MAX_PREAMP,
-                colors = SliderDefaults.colors(
-                    thumbColor = Sillon.colors.accentCuivre,
-                    activeTrackColor = Sillon.colors.accentCuivre,
-                ),
+                activeColor = Sillon.colors.accentCuivre,
+                inactiveColor = Sillon.colors.texteSourdine.copy(alpha = 0.4f),
+                thumbColor = Sillon.colors.accentCuivre,
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(Sillon.spacing.s))
