@@ -3,7 +3,9 @@ package ch.kohlnet.sillon.ui.screens
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +94,15 @@ import coil3.compose.AsyncImage
 private enum class PlayerPane { COVER, LYRICS, QUEUE, EQUALIZER }
 
 /**
+ * État d'UI du lecteur conservé HORS composition → survit à la fermeture/réouverture du lecteur (T6) :
+ * on retrouve la vue (pochette / paroles / égaliseur / file) telle qu'on l'a laissée.
+ */
+private object PlayerUiState {
+    val paneState = mutableStateOf(PlayerPane.COVER)
+    val queueFileState = mutableStateOf(false)
+}
+
+/**
  * Lecteur plein écran (façon iOS). ADAPTATIF : étroit (iPhone) = pochette en haut, contrôles dessous ;
  * large (iPad) = deux colonnes. Pochette RONDE entourée d'un spectre. Sous la barre de progression :
  * nom du serveur + qualité (vert). Volume, saut ±10 s, sortie audio.
@@ -102,10 +113,9 @@ fun FullPlayerScreen(onClose: () -> Unit) {
     val playing by PlayerController.isPlaying.collectAsState()
     val position by PlayerController.positionMs.collectAsState()
     val duration by PlayerController.durationMs.collectAsState()
-    var pane by remember { mutableStateOf(PlayerPane.COVER) }
-    // Mode du panneau file : false = « Album » (titres de l'album), true = « File d'attente » (mix manuel).
-    // Partagé par le bouton File d'attente du lecteur ET le panneau (chips), pour les deux mises en page.
-    var queueFile by remember { mutableStateOf(false) }
+    // Pane et mode file PERSISTANTS (singleton hors composition) → survivent à la fermeture/réouverture (T6).
+    var pane by PlayerUiState.paneState
+    var queueFile by PlayerUiState.queueFileState
     LaunchedEffect(Unit) { PlayerController.refreshVolume() } // refléter le volume système courant
     val t = track ?: return
 
@@ -113,6 +123,15 @@ fun FullPlayerScreen(onClose: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Sillon.colors.fondNoir)
+            // SWIPE vers le BAS (zones non défilables : pochette, espaces) = abaisser le lecteur (T4).
+            .pointerInput(Unit) {
+                var total = 0f
+                val threshold = 120.dp.toPx()
+                detectVerticalDragGestures(
+                    onDragStart = { total = 0f },
+                    onDragEnd = { if (total > threshold) onClose() },
+                ) { change, dy -> total += dy; change.consume() }
+            }
             // Calque PLEIN ÉCRAN : consommer TOUS les taps, sinon un tap dans une zone vide traverse vers
             // l'écran derrière (ex. ouvrait le menu ⋮ d'une rangée du détail d'album).
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}

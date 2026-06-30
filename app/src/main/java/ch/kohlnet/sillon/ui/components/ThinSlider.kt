@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -28,30 +32,37 @@ fun ThinSlider(
 ) {
     val min = valueRange.start
     val max = valueRange.endInclusive
+    // Valeur SUIVIE PENDANT le glissement : le curseur suit le DOIGT (pas `value`, qui peut être faux/laggy
+    // pendant le buffering d'un seek) → il reste là où on lâche, ne « saute » plus en fin de titre.
+    var dragValue by remember { mutableStateOf<Float?>(null) }
 
-    BoxWithConstraints(modifier.height(20.dp)) {
+    BoxWithConstraints(modifier.height(28.dp)) { // zone tactile plus haute → plus facile à attraper
         val wPx = with(LocalDensity.current) { maxWidth.toPx() }
         fun valueAt(x: Float) = (min + (x / wPx).coerceIn(0f, 1f) * (max - min)).coerceIn(min, max)
 
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                // GLISSER uniquement (plus de « tap-to-seek ») : un simple tap ne déplace plus la position
-                // ni le volume → fini les sauts accidentels quand on visait autre chose. On capte aussi le
-                // tap initial du glissement (onDragStart) pour que le 1er contact réagisse sans devoir bouger.
-                .pointerInput(enabled) {
+                // GLISSER uniquement (pas de « tap-to-seek »). Pendant le glissement, on mémorise la valeur
+                // sous le doigt (dragValue) et on l'envoie ; à la fin, on confirme et on relâche le suivi.
+                .pointerInput(enabled, min, max, wPx) {
                     if (!enabled) return@pointerInput
                     detectHorizontalDragGestures(
-                        onDragStart = { onValueChange(valueAt(it.x)) },
+                        onDragStart = { val v = valueAt(it.x); dragValue = v; onValueChange(v) },
+                        onDragEnd = { dragValue?.let(onValueChange); dragValue = null },
+                        onDragCancel = { dragValue = null },
                     ) { change, _ ->
-                        onValueChange(valueAt(change.position.x))
+                        val v = valueAt(change.position.x)
+                        dragValue = v
+                        onValueChange(v)
                         change.consume()
                     }
                 },
         ) {
             val cy = size.height / 2f
             val span = max - min
-            val frac = if (span != 0f) ((value - min) / span).coerceIn(0f, 1f) else 0f
+            val shown = dragValue ?: value // glissement → doigt ; sinon → position de lecture
+            val frac = if (span != 0f) ((shown - min) / span).coerceIn(0f, 1f) else 0f
             val xv = size.width * frac
             val h = 2.5.dp.toPx()
             drawLine(inactiveColor, Offset(0f, cy), Offset(size.width, cy), strokeWidth = h, cap = StrokeCap.Round)
