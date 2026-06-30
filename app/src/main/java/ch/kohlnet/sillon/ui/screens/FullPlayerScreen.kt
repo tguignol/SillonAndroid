@@ -160,9 +160,16 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 MediaArea(t, pane, playing, wide = false, Modifier.fillMaxWidth().weight(1f), file = queueFile, onFileChange = { queueFile = it })
-                // Écran externe : titre/artiste/album RAPPROCHÉS de la pochette+spectre (T7).
-                Spacer(Modifier.height(Sillon.spacing.xs))
-                Controls(t, playing, position, duration, pane, queueFile = queueFile, onQueueFileChange = { queueFile = it }) { pane = it }
+                // Écran externe : titre / artiste / album RÉPARTIS dans l'espace entre le bas du spectre et
+                // la barre (au lieu d'être tassés en bas) — bloc remonté, espace partagé.
+                Column(
+                    modifier = Modifier.fillMaxWidth().weight(0.5f),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    TrackMeta(t)
+                }
+                Controls(t, playing, position, duration, pane, queueFile = queueFile, onQueueFileChange = { queueFile = it }, showMeta = false) { pane = it }
             }
         }
 
@@ -306,27 +313,16 @@ private fun TransportButton(
     }
 }
 
+/** Titre de la chanson + artiste + album, centrés. Réutilisé : dans les contrôles (écran large) et,
+ *  en écran externe, dans une colonne qui RÉPARTIT ces 3 lignes entre le bas du spectre et la barre. */
 @Composable
-private fun ColumnScope.Controls(
-    t: Track,
-    playing: Boolean,
-    position: Long,
-    duration: Long,
-    pane: PlayerPane,
-    showQueue: Boolean = true,
-    tight: Boolean = false,
-    queueFile: Boolean = false,
-    onQueueFileChange: (Boolean) -> Unit = {},
-    onSetPane: (PlayerPane) -> Unit,
-) {
+private fun TrackMeta(t: Track) {
     Text(
         text = t.title,
         style = Sillon.type.display,
         color = Sillon.colors.texteIvoire,
         textAlign = TextAlign.Center,
-        // Hauteur FIGÉE à 2 lignes (min = max) : le bloc haut ne se contracte/dilate plus selon la
-        // longueur du titre au changement de morceau → le reste ne décale plus.
-        minLines = 2,
+        minLines = 2, // hauteur figée → pas de décalage au changement de titre
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth(),
@@ -342,7 +338,6 @@ private fun ColumnScope.Controls(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    // Titre de l'album SOUS l'artiste (demandé), un cran plus discret.
     t.album?.takeIf { it.isNotBlank() }?.let { album ->
         Text(
             text = album,
@@ -354,8 +349,26 @@ private fun ColumnScope.Controls(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
 
-    Spacer(Modifier.height(Sillon.spacing.l))
+@Composable
+private fun ColumnScope.Controls(
+    t: Track,
+    playing: Boolean,
+    position: Long,
+    duration: Long,
+    pane: PlayerPane,
+    showQueue: Boolean = true,
+    tight: Boolean = false,
+    queueFile: Boolean = false,
+    onQueueFileChange: (Boolean) -> Unit = {},
+    showMeta: Boolean = true, // titre/artiste/album DANS les contrôles (écran large) ; en externe ils sont
+    onSetPane: (PlayerPane) -> Unit, // rendus séparément, répartis entre la pochette et la barre.
+) {
+    if (showMeta) {
+        TrackMeta(t)
+        Spacer(Modifier.height(Sillon.spacing.l))
+    }
 
     val dur = duration.coerceAtLeast(1L)
     ThinSlider(
