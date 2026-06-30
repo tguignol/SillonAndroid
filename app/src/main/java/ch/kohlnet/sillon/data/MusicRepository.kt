@@ -558,7 +558,12 @@ object MusicRepository {
             persistTrackCache()
             return hit.tracks
         }
-        val fresh = providers[album.serverId]?.let { runCatching { it.tracks(album.id) }.getOrNull() } ?: emptyList()
+        val raw = providers[album.serverId]?.let { runCatching { it.tracks(album.id) }.getOrNull() } ?: emptyList()
+        // Repli FIABLE pour l'artiste : si une piste n'en a pas (tags « album artist » seul, ex. Queen côté
+        // Jellyfin), on utilise l'artiste de l'ALBUM → l'artiste s'affiche enfin (lecteur, listes).
+        val fresh = if (album.artist.isNotBlank())
+            raw.map { if (it.artist.isBlank()) it.copy(artist = album.artist) else it }
+        else raw
         if (fresh.isNotEmpty()) {
             trackCache[key] = TrackCache.Entry(key, fresh, System.currentTimeMillis())
             evictTrackCacheIfNeeded()
