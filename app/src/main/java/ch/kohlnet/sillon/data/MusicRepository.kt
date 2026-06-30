@@ -186,6 +186,11 @@ object MusicRepository {
         appContext = context.applicationContext
         scope.launch { _favorites.value = FavoritesStore.load(context.applicationContext) }
         scope.launch { TrackCache.load(context.applicationContext).forEach { trackCache[it.key] = it } }
+        // Onglet « Titres » : affichage INSTANTANÉ depuis le cache, puis rafraîchi en fond (T2).
+        scope.launch {
+            val cached = AllTracksCache.load(context.applicationContext)
+            if (cached.isNotEmpty() && _allTracks.value.isEmpty()) _allTracks.value = cached
+        }
         scope.launch {
             val raw = context.applicationContext.dataStore.data.first()[KEY_FAV_TRACKS]
             _favoriteTrackKeys.value = raw?.split("\n")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
@@ -452,18 +457,30 @@ object MusicRepository {
     suspend fun radio(seed: Track): List<Track> =
         providers[seed.serverId]?.let { runCatching { it.radio(seed.id) }.getOrDefault(emptyList()) } ?: emptyList()
 
-    /** Charge TOUS les titres des serveurs actifs (paginé, en parallèle). Mémoïsé sauf `force`. */
+    /**
+     * Charge TOUS les titres des serveurs actifs (paginé, en parallèle). Affiche d'abord le cache (instantané),
+     * rafraîchit du réseau et persiste. Spinner uniquement si on n'a RIEN à montrer ; cache préservé si le
+     * réseau échoue (liste vide). Rafraîchi une seule fois par session (sauf `force`).
+     */
     suspend fun loadAllTracks(force: Boolean = false) {
-        if (!force && _allTracks.value.isNotEmpty()) return
-        _loadingTracks.value = true
+        if (allTracksRefreshed && !force) return
+        val hadData = _allTracks.value.isNotEmpty()
+        if (!hadData) _loadingTracks.value = true // spinner SEULEMENT si rien (sinon le cache reste affiché)
         try {
             val active = _servers.value.filter { it.active }.mapNotNull { providers[it.id] }
             val all = coroutineScope { active.map { p -> async { runCatching { p.allTracks() }.getOrNull() } }.awaitAll() }
-            _allTracks.value = all.filterNotNull().flatten()
+            val fresh = all.filterNotNull().flatten()
+            if (fresh.isNotEmpty()) {
+                _allTracks.value = fresh
+                allTracksRefreshed = true
+                appContext?.let { ctx -> scope.launch { AllTracksCache.save(ctx, fresh) } }
+            }
         } finally {
             _loadingTracks.value = false
         }
     }
+
+    @Volatile private var allTracksRefreshed = false
 
     /** Réécrit le cache local des métadonnées (albums par serveur) sur disque, en tâche de fond. */
     private fun persistLibraryCache() {
