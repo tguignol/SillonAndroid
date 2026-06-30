@@ -33,7 +33,8 @@ class JellyfinProvider(override val config: ServerConfig) : ServerProvider {
         return Track(
             id = tk.id,
             title = tk.name,
-            artist = tk.artists?.joinToString(", ").orEmpty(),
+            // Repli sur l'artiste d'ALBUM si la piste n'a pas d'artiste propre (tags « album artist » seul).
+            artist = tk.artists?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: tk.albumArtist.orEmpty(),
             index = tk.index,
             disc = tk.disc,
             durationMs = tk.runTimeTicks?.div(10_000),

@@ -70,6 +70,7 @@ data class JellyfinTrack(
     @SerialName("ParentIndexNumber") val disc: Int? = null, // n° de disque (albums multi-disques)
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("Artists") val artists: List<String>? = null,
+    @SerialName("AlbumArtist") val albumArtist: String? = null, // repli si la piste n'a pas d'artiste propre
     @SerialName("Album") val album: String? = null,
     @SerialName("Container") val container: String? = null,
     @SerialName("Path") val path: String? = null,
@@ -198,7 +199,7 @@ class JellyfinClient(baseUrl: String) {
             parameter("parentId", albumId)
             parameter("IncludeItemTypes", "Audio")
             parameter("SortBy", "ParentIndexNumber,IndexNumber,SortName")
-            parameter("Fields", "Artists,MediaStreams,Path,Container")
+            parameter("Fields", "Artists,AlbumArtist,MediaStreams,Path,Container")
         }.body<TracksResponse>().items
 
     /** Playlists du serveur (lecture seule). */
@@ -217,7 +218,7 @@ class JellyfinClient(baseUrl: String) {
         http.get("$base/Playlists/$playlistId/Items") {
             header("X-Emby-Authorization", authHeader(token))
             parameter("userId", userId)
-            parameter("Fields", "Artists,MediaStreams,Path,Container")
+            parameter("Fields", "Artists,AlbumArtist,MediaStreams,Path,Container")
         }.body<TracksResponse>().items
 
     /** « Radio » Jellyfin : Instant Mix à partir d'un titre (titres similaires). */
@@ -226,7 +227,7 @@ class JellyfinClient(baseUrl: String) {
             header("X-Emby-Authorization", authHeader(token))
             parameter("userId", userId)
             parameter("Limit", limit.toString())
-            parameter("Fields", "Artists,MediaStreams,Path,Container")
+            parameter("Fields", "Artists,AlbumArtist,MediaStreams,Path,Container")
         }.body<TracksResponse>().items
 
     /** TOUS les titres (paginé, ordre alphabétique), borné par garde-fou. */
@@ -243,7 +244,7 @@ class JellyfinClient(baseUrl: String) {
                 parameter("SortBy", "SortName")
                 parameter("StartIndex", start.toString())
                 parameter("Limit", pageSize.toString())
-                parameter("Fields", "Artists,MediaStreams,Path,Container")
+                parameter("Fields", "Artists,AlbumArtist,MediaStreams,Path,Container")
             }.body<TracksResponse>()
             out += resp.items
             if (resp.items.size < pageSize) break
