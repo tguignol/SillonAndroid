@@ -28,6 +28,11 @@ android {
                 enable = false
             }
         }
+        debug {
+            // Builds/installs de dev plus légers : ne garder que l'ABI des appareils de test (arm64-v8a) —
+            // évite d'embarquer les libs natives ML Kit pour x86/x86_64/armeabi-v7a (~46 Mo). Release = tous.
+            ndk { abiFilters += "arm64-v8a" }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
