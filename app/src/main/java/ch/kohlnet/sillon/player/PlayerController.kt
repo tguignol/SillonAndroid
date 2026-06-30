@@ -40,6 +40,11 @@ object PlayerController {
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    // INTENTION de lecture (playWhenReady) : reste vrai pendant le buffering d'un seek, contrairement à
+    // isPlaying qui retombe brièvement. → l'icône Lecture/Pause ne clignote plus quand on fait ±10 s (T8).
+    private val _playWhenReady = MutableStateFlow(false)
+    val playWhenReady: StateFlow<Boolean> = _playWhenReady.asStateFlow()
+
     private val _positionMs = MutableStateFlow(0L)
     val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
@@ -84,6 +89,10 @@ object PlayerController {
     private var appContext: Context? = null
 
     private val listener = object : Player.Listener {
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            _playWhenReady.value = playWhenReady
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
             appContext?.let { SillonWidget.update(it) }
@@ -120,6 +129,7 @@ object PlayerController {
             c.addListener(listener)
             c.volume = 1f   // volume applicatif à fond : c'est le volume SYSTÈME qu'on règle
             _isPlaying.value = c.isPlaying
+            _playWhenReady.value = c.playWhenReady
             _current.value = _queue.value.getOrNull(c.currentMediaItemIndex)
         }, ContextCompat.getMainExecutor(ctx))
 
@@ -228,7 +238,9 @@ object PlayerController {
 
     fun togglePlayPause() {
         val c = controller ?: return
-        if (c.isPlaying) c.pause() else c.play()
+        // Sur l'INTENTION (playWhenReady), pas isPlaying : pendant le buffering d'un seek, isPlaying est
+        // faux alors qu'on veut rester en lecture → éviter un faux « relancer ».
+        if (c.playWhenReady) c.pause() else c.play()
     }
 
     fun next() {

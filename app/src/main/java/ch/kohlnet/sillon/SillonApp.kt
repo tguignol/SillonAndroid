@@ -231,7 +231,7 @@ private fun SillonBottomBar(current: SillonDestination, onSelect: (SillonDestina
 @Composable
 private fun NowPlayingBar(onOpen: () -> Unit, bottomInset: Boolean = false) {
     val track by PlayerController.current.collectAsState()
-    val playing by PlayerController.isPlaying.collectAsState()
+    val playing by PlayerController.playWhenReady.collectAsState() // intention → pas de clignotement (T8)
     val position by PlayerController.positionMs.collectAsState()
     val duration by PlayerController.durationMs.collectAsState()
     val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()

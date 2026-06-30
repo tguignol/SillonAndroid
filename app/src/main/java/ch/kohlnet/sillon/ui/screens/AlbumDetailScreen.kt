@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -167,13 +168,16 @@ private fun DiscHeader(disc: Int) {
 
 @Composable
 private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
+    val favTracks by MusicRepository.favoriteTrackKeys.collectAsState()
+    val isFav = track.matchKey() in favTracks
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = Sillon.spacing.s),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.m),
+        // Resserré (T13/T14) : moins d'espace entre n°↔titre et entre les icônes de droite.
+        horizontalArrangement = Arrangement.spacedBy(Sillon.spacing.xs),
     ) {
         Text(
             text = track.index?.toString() ?: "•",
@@ -189,8 +193,16 @@ private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        // Bouton ⋮ (juste AVANT l'encodage) : menu d'actions du titre (« Ajouter à une playlist » ; les
-        // actions de file d'attente y restent code-only, cf. QUEUE_UI_ENABLED). Réutilisable partout.
+        // Cœur ROUGE si le titre est en favori (AVANT la mention d'encodage). T5.
+        if (isFav) {
+            Icon(
+                Icons.Filled.Favorite,
+                contentDescription = "Favori",
+                tint = Color(0xFFE53935),
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        // Bouton ⋮ : menu d'actions du titre (« Ajouter à une playlist »…). Réutilisable partout.
         TrackMenuButton(track)
         // Type d'encodage (FLAC / ALAC / WAV…) en vert, comme ailleurs.
         track.formatLabel()?.takeIf { it.isNotBlank() }?.let {

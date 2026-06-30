@@ -141,7 +141,8 @@ fun FullPlayerScreen(onClose: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 MediaArea(t, pane, playing, wide = false, Modifier.fillMaxWidth().weight(1f), file = queueFile, onFileChange = { queueFile = it })
-                Spacer(Modifier.height(Sillon.spacing.l))
+                // Écran externe : titre/artiste/album RAPPROCHÉS de la pochette+spectre (T7).
+                Spacer(Modifier.height(Sillon.spacing.xs))
                 Controls(t, playing, position, duration, pane, queueFile = queueFile, onQueueFileChange = { queueFile = it }) { pane = it }
             }
         }
@@ -372,6 +373,8 @@ private fun ColumnScope.Controls(
 
     val shuffle by PlayerController.shuffle.collectAsState()
     val repeatMode by PlayerController.repeatMode.collectAsState()
+    // Icône Lecture/Pause sur l'INTENTION (ne clignote pas pendant le buffering d'un seek ±10 s) — T8.
+    val wantPlay by PlayerController.playWhenReady.collectAsState()
 
     // Boutons LATÉRAUX à zone tactile SERRÉE (TransportButton ≈ icône + 4 dp) : un tap un peu À CÔTÉ ne
     // déclenche plus « avance/recule » (IconButton imposait 48 dp, donc un large anneau autour de l'icône).
@@ -391,8 +394,8 @@ private fun ColumnScope.Controls(
             modifier = if (tight) Modifier.size(48.dp) else Modifier,
         ) {
             Icon(
-                if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (playing) "Pause" else "Lecture",
+                if (wantPlay) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (wantPlay) "Pause" else "Lecture",
                 tint = Sillon.colors.accentCuivre,
                 modifier = Modifier.size(if (tight) 44.dp else 54.dp),
             )
